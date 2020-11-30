@@ -1,13 +1,13 @@
-// TODO: find appropriate types for balances and addresses
 use frame_support::{decl_error, decl_module, decl_storage, ensure, traits::WithdrawReason, traits::{Currency, ExistenceRequirement, Time}};
 use frame_system::ensure_signed;
 use codec::{Decode, Encode};
-const UNLOCK_DURATION: u128 = 100;
 
-// struct Stake {
-//     amount : u128, //amount of the stake
-//     leftAmount: u128, // value of the stake on left branch
-//     rightAmount: u128, // value of the stake on the right branch
+const UNLOCK_DURATION: u32 = 100;
+
+// struct Stake<AccountId, Balance, Timestamp> {
+//     amount : Balance , //amount of the stake
+//     leftAmount: Balance, // value of the stake on left branch
+//     rightAmount: Balance, // value of the stake on the right branch
 //     stakee: AccountId, // address of peer that offers to stake
 //     parent: Box<Stake>,
 //     left: Box<Stake>, // left children
@@ -60,12 +60,17 @@ decl_error! {
 		ZeroStake,
 		/// Cannot re-stake while funds are unlocking
 		StakeWhileUnlocking,
+		/// Only one stake allowed per address
+		AlreadyStaking,
+		/// The address is not staking
+		NotStaking,
+		/// The unlock period has not been exhausted
+		CannotUnlock,
 	}
 }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as SyloDirectory {
-	    // stakes
 		pub Stakes get(fn stakes): map hasher(blake2_128_concat) T::AccountId => Stake<BalanceOf<T>, Timestamp<T>>;
 	}
 }
@@ -73,9 +78,16 @@ decl_storage! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = frame_system {
 		#[weight = 0]
-		fn add_stake_for(origin, amount: BalanceOf<T>) {
+		fn add_stake(origin, amount: BalanceOf<T>) {
 			let address = ensure_signed(origin)?;
-			let unlock_at = T::Time::now();
+			// Check that the node is not already staking
+			ensure!(!<Stakes<T>>::contains_key(&address), Error::<T>::AlreadyStaking);
+
+			//Remove funds from account
+			T::Currency::withdraw(&address, amount, WithdrawReason::Fee.into(), ExistenceRequirement::KeepAlive)?;
+
+			// Calculate lock period and create stake
+			let unlock_at = T::Time::now() + UNLOCK_DURATION.into();
 			let stake = Stake {amount, unlock_at};
 			<Stakes<T>>::insert(address, stake);
 		}
@@ -83,14 +95,59 @@ decl_module! {
 		#[weight = 0]
 		fn get_stake(origin) {
             let address = ensure_signed(origin)?;
+			ensure!(<Stakes<T>>::contains_key(&address), Error::<T>::NotStaking);
             <Stakes<T>>::get(address);
 		}
 
 		#[weight = 0]
-		fn unstake_to(origin) {
-            let address = ensure_signed(origin)?;
-            <Stakes<T>>::take(address);
+		fn unstake(origin) {
+			let address = ensure_signed(origin)?;
+			ensure!(<Stakes<T>>::contains_key(&address), Error::<T>::NotStaking);
+			let Stake {amount, unlock_at} = <Stakes<T>>::get(&address);
+			ensure!(T::Time::now() >= unlock_at, Error::<T>::CannotUnlock); // Ensure unlock period exhausted
+			T::Currency::deposit_into_existing(&address, amount);
+			<Stakes<T>>::remove(&address);
 		}
 	}
 }
 
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::{ExtBuilder, Origin, Test};
+	use frame_support::assert_ok;
+	use frame_system::RawOrigin;
+	use sp_runtime::DispatchError::Other;
+
+	type Directory = Module<Test>;
+
+	impl Trait for Test {
+		type WeightInfo = ();
+	}
+
+	#[test]
+	fn create_stake() {
+		ExtBuilder::default().build().execute_with(|| {
+		});
+	}
+
+	#[test]
+	fn withdraw_stake() {
+
+	}
+
+	#[test]
+	fn withdraw_before_unlock() {
+
+	}
+
+	#[test]
+	fn multiple_stakes() {
+
+	}
+
+	#[test]
+	fn stake_insufficient_balance() {
+
+	}
+}
