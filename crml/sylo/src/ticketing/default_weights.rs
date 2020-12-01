@@ -8,5 +8,4 @@ impl crate::ticketing::WeightInfo for () {
     fn withdraw() -> Weight { 0 }
     fn withdraw_to() -> Weight { 0 }
     fn redeem() -> Weight { 0 }
-    fn require_valid_winning_ticket() -> Weight { 0 }
 }
