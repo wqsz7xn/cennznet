@@ -1,4 +1,4 @@
-use frame_support::{decl_error, decl_module, decl_storage, dispatch::Vec, ensure, weights::Weight};
+use frame_support::{decl_error, decl_module, decl_storage, dispatch::Vec, dispatch::DispatchResult, ensure, weights::Weight};
 use frame_system::ensure_signed;
 
 // Listing
