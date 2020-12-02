@@ -163,6 +163,7 @@ decl_module! {
 
         #[weight = T::WeightInfo::redeem()]
         pub fn redeem(origin, ticket: TicketOf<T>, receiver_rand: U256, sig: MultiSignature) {
+            let _ = ensure_signed(origin)?;
             let hash = get_ticket_hash::<T>(&ticket);
             ensure_valid_winning_ticket::<T>(&ticket, &hash, receiver_rand, sig)?;
 
