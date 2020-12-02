@@ -1142,6 +1142,8 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-balances",
+ "pallet-timestamp",
  "parity-scale-codec",
  "serde",
  "sp-core",

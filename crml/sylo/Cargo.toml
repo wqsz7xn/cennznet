@@ -15,6 +15,10 @@ sp-io = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.
 sp-runtime = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 sp-std = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 
+[dev-dependencies]
+pallet-balances = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
+pallet-timestamp = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
+
 [features]
 default = ["std"]
 std = [
