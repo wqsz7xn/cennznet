@@ -104,48 +104,44 @@ decl_module! {
         #[weight = T::WeightInfo::deposit_escrow()]
         pub fn deposit_escrow(origin, amount: BalanceOf<T>) {
             let account = ensure_signed(origin)?;
-            let deposit = <Deposits<T>>::get(&account);
+            let mut deposit = <Deposits<T>>::get(&account);
             ensure!(deposit.unlock_at == (0 as u32).into(), Error::<T>::DepositWhileUnlocking);
 
             T::Currency::withdraw(&account, amount, WithdrawReason::Fee.into(), ExistenceRequirement::KeepAlive)?;
-            <Deposits<T>>::mutate(&account, |ref mut deposit| {
-                deposit.escrow += amount;
-            });
+            deposit.escrow += amount;
+            <Deposits<T>>::insert(&account, deposit);
         }
 
         #[weight = T::WeightInfo::deposit_penalty()]
         pub fn deposit_penalty(origin, amount: BalanceOf<T>) {
             let account = ensure_signed(origin)?;
-            let deposit = <Deposits<T>>::get(&account);
+            let mut deposit = <Deposits<T>>::get(&account);
             ensure!(deposit.unlock_at == (0 as u32).into(), Error::<T>::DepositWhileUnlocking);
 
             T::Currency::withdraw(&account, amount, WithdrawReason::Fee.into(), ExistenceRequirement::KeepAlive)?;
-            <Deposits<T>>::mutate(&account, |ref mut deposit| {
-                deposit.penalty += amount;
-            });
+            deposit.penalty += amount;
+            <Deposits<T>>::insert(&account, deposit);
         }
 
         #[weight = T::WeightInfo::unlock_deposits()]
         pub fn unlock_deposits(origin) {
             let account = ensure_signed(origin)?;
-            let deposit = <Deposits<T>>::get(&account);
+            let mut deposit = <Deposits<T>>::get(&account);
             ensure!(deposit.escrow > (0 as u32).into() || deposit.penalty > (0 as u32).into(), Error::<T>::NothingToWithdraw);
             ensure!(deposit.unlock_at == (0 as u32).into(), Error::<T>::UnlockAlreadyInProgress);
 
-            <Deposits<T>>::mutate(&account, |ref mut deposit| {
-                deposit.unlock_at = T::Time::now() + UNLOCK_DURATION.into();
-            })
+            deposit.unlock_at = T::Time::now() + UNLOCK_DURATION.into();
+            <Deposits<T>>::insert(&account, deposit)
         }
 
         #[weight = T::WeightInfo::lock_deposits()]
         pub fn lock_deposits(origin) {
             let account = ensure_signed(origin)?;
-            let deposit = <Deposits<T>>::get(&account);
+            let mut deposit = <Deposits<T>>::get(&account);
             ensure!(deposit.unlock_at != (0 as u32).into(), Error::<T>::NotUnlocking);
 
-            <Deposits<T>>::mutate(account, |ref mut deposit| {
-                deposit.unlock_at = (0 as u32).into();
-            })
+            deposit.unlock_at = (0 as u32).into();
+            <Deposits<T>>::insert(account, deposit)
         }
 
         #[weight = T::WeightInfo::withdraw()]
@@ -167,7 +163,7 @@ decl_module! {
             let hash = get_ticket_hash::<T>(&ticket);
             ensure_valid_winning_ticket::<T>(&ticket, &hash, receiver_rand, sig)?;
 
-            let deposit = <Deposits<T>>::get(&ticket.sender);
+            let mut deposit = <Deposits<T>>::get(&ticket.sender);
 
             ensure!(deposit.escrow + deposit.penalty >= ticket.face_value, Error::<T>::InsufficientFunds);
 
@@ -175,17 +171,14 @@ decl_module! {
 
             if ticket.face_value > deposit.escrow {
                 let penalty_amount = ticket.face_value - deposit.escrow;
-                <Deposits<T>>::mutate(&ticket.sender, |deposit| {
-                    deposit.escrow = (0 as u32).into();
-                    deposit.penalty -= penalty_amount;
-                })
+                deposit.escrow = (0 as u32).into();
+                deposit.penalty -= penalty_amount;
             } else {
-                <Deposits<T>>::mutate(&ticket.sender, |deposit| {
-                    deposit.escrow = deposit.escrow - ticket.face_value;
-                })
+                deposit.escrow = deposit.escrow - ticket.face_value;
             }
 
             T::Currency::deposit_into_existing(&ticket.receiver, ticket.face_value)?;
+            <Deposits<T>>::insert(&ticket.sender, deposit);
         }
     }
 }
