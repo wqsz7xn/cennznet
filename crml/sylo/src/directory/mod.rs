@@ -21,9 +21,9 @@ pub struct Stake<AccountId, Balance> {
 	
 	stakee: AccountId, // Address of peer that offers sevices
 
-    parent: Option<Hash>, // Hash of parent 
-    left : Option<Hash>, // Hash of left child 
-    right : Option<Hash>, // Hash of right child 
+    parent: Hash, // Hash of parent 
+    left : Hash, // Hash of left child 
+    right : Hash, // Hash of right child 
 }
 
 #[derive(Encode, Decode, Default, Debug)]
@@ -95,33 +95,32 @@ decl_module! {
 				let current_stake_key = parent;
 				let mut current_stake = <Stakes<T>>::get(current_stake_key);
 
-				println!("parent: {:?}", parent);
+				//println!("parent: {:?}", parent);
 				while !(parent == [0u8; 32]) { 
-					let next;
-					println!("current stake: {:?}", current_stake);
+					let next: Hash;
+					//println!("current stake: {:?}", current_stake);
 					if current_stake.left_amount < current_stake.right_amount {
 						next = current_stake.left;
 					} else {
 						next = current_stake.right;
 					}
 
-					if next.is_none()  {
+					if next == [0u8; 32]  {
 						break;
 					}
 
-					parent = next.unwrap(); // Safe to unwrap, none check above
+					parent = next;
 					current_stake = <Stakes<T>>::get(parent);
 				}
 
-				Self::set_child(Some(current_stake_key), None, Some(key));
+				Self::set_child(current_stake_key, [0u8; 32], key);
 
-				// Create a stake and 
+				// Create a stake and insert it into directory
 				let mut stake = <Stakes<T>>::get(key);
-				stake.parent = Some(parent);
+				stake.parent = parent;
 				stake.stakee = stakee.clone();
 
 				<Stakes<T>>::insert(key, stake); // insert it into directory
-
 			}
 
 			// Now that the key for the stake is defined fetch it, or if it was already defined fetch it
@@ -129,11 +128,11 @@ decl_module! {
 
 			// Set the root if it's the first stake
 			//println!("{:?}", stake.parent);
-			if stake.parent == Some([0u8; 32]){ 
+			if stake.parent == [0u8; 32] { 
 				Root::put(key);
 			}
 
-			Self::update_stake_amount(Some(key), Some(key), amount, false);
+			Self::update_stake_amount(key, key, amount, false);
 			T::Currency::withdraw(&staker, amount, WithdrawReason::Fee.into(), ExistenceRequirement::KeepAlive)?;
 
 			Ok(())
@@ -150,11 +149,11 @@ decl_module! {
 			ensure!(stake.amount >= amount, Error::<T>::InsufficientStakeBalance);
 
 			// Remove the balance from the stake
-			Self::update_stake_amount(Some(stake_key), Some(stake_key), amount, true);
+			Self::update_stake_amount(stake_key, stake_key, amount, true);
 
 			//Stake has been withdrawn now update the tree
 			if stake.amount == (0 as u32).into() {
-				let mut child : Option<Hash>;
+				let mut child : Hash;
 				if stake.left_amount > stake.right_amount {
 					child = stake.left;
 				} else {
@@ -162,61 +161,66 @@ decl_module! {
 				}
 
 				let parent_key = stake.parent;
-				let mut parent = <Stakes<T>>::get(parent_key.unwrap());
+				let mut parent = <Stakes<T>>::get(parent_key);
 
-				if child.is_none() {
-					Self::set_child(Some(stake_key), Some(stake_key), None);
+				if child == [0u8; 32] {
+					Self::set_child(stake_key, stake_key, [0u8; 32]);
 
 					// The only staker is removed, reset root
-					if stake.parent.is_none() {
+					if stake.parent == [0u8; 32] {
 						Root::set([0u8; 32]);	
 					}
 				} else {
 
-					let current_key = child.unwrap();
+					let current_key = child;
 					let mut current = <Stakes<T>>::get(current_key);
 
 					loop {
-						let next : Option<Hash>;
+						let next : Hash;
 						if current.left_amount > current.right_amount {
 							next = current.left;
 						} else {
 							next = current.right;
 						}
-						if next.is_none() {
+
+						if next == [0u8; 32] {
 							break;
 						}
 
 						child = next;
-						current = <Stakes<T>>::get(next.unwrap());
+						current = <Stakes<T>>::get(next);
 					}
 
 					let current_parent = current.parent;
-					Self::set_child(parent_key, Some(stake_key), child);
+					Self::set_child(parent_key, stake_key, child);
 					current.parent = stake.parent;
 
 
 					// update the children of current to be that of what the removed stake was
-					if current_parent != Some(stake_key) {
+					if current_parent != stake_key {
 
 						// Move the children of stake to current
-						Self::fixl(Some(stake_key), child, child);
-						Self::fixr(Some(stake_key), child, child);
+						Self::fixl(stake_key, child, current_key);
+						Self::fixr(stake_key, child, current_key);
 
 						// Place stake where current was and
 						stake.parent = current_parent; // set parent
-						Self::set_child(current_parent, current_parent, Some(stake_key)); // set parents child
+						Self::set_child(current_parent, current_parent, stake_key); // set parents child
 
-						// Unstake amount
-						//Self::apply_stake_change(Some(key), &mut stake, current.amount.saturating_sub(current.amount), current.parent);
+						// Unstake (take away from stake)amount
+						Self::apply_stake_change(stake_key, stake_key, current.amount, current.parent);
 
-						Self::set_child(current_parent, Some(stake_key), None);
+						Self::set_child(current_parent, stake_key, [0u8; 32]);
 					}
 					else if stake.left == child {
-						Self::fixr(Some(stake_key), child, Some(current_key));
+						Self::fixr(stake_key, child, current_key);
 					}
 					else {
-						Self::fixl(Some(stake_key), child, Some(current_key));
+						Self::fixl(stake_key, child, current_key);
+					}
+
+					if current.parent == [0u8; 32] {
+						Root::put(child);
 					}
 				}
 
@@ -258,8 +262,8 @@ decl_module! {
 			let staker = ensure_signed(origin)?;
 			let key = Self::get_key(staker, stakee);
 
-			Self::pull_unlocking(Some(key), amount);
-			Self::update_stake_amount(Some(key), Some(key), amount, false);
+			Self::pull_unlocking(key, amount);
+			Self::update_stake_amount(key, key, amount, false);
 		}
 
 		// Assumes that point is some random u128
@@ -273,34 +277,30 @@ impl<T: Trait> Module<T> {
 		keccak_256(vec_bytes.as_slice())
 	}
 
-	fn set_child(key: Option<Hash>, old_key : Option<Hash>, new_key: Option<Hash>) {
-
-		println!("set child: key: {:?}", key);
-		let checked_key = match key {
-			Some(x) => x,
-			None => return,
-		};
-
-		let mut stake = <Stakes<T>>::get(checked_key);
+	// set the child for a given stake 
+	//	key: stake to replace child
+	// 	old_key: key to replace
+	// 	new_key: key to replace old key
+	fn set_child(key: Hash, old_key : Hash, new_key: Hash) {
+		let mut stake = <Stakes<T>>::get(key);
 		if stake.left == old_key {
 			stake.left = new_key;
 		} else {
 			stake.right = new_key
 		}
 
-		<Stakes<T>>::insert(checked_key, stake);
+		<Stakes<T>>::insert(key, stake);
 	}
 
-	fn update_stake_amount(key: Option<Hash>, stake_key: Option<Hash>, amount: BalanceOf<T>, flag: bool) {
+	// update the value that a stake holds
+	//	key: key of stake to update
+	//	stake_key: key of the first stake to updat 
+	//	amount: amount to change the stake tree by	
+	fn update_stake_amount(key: Hash, stake_key: Hash, amount: BalanceOf<T>, flag: bool) {
 
-		let checked_stake_key = match stake_key {
-			Some(x) => x,
-			None => return,
-		};
+		let mut stake = <Stakes<T>>::get(stake_key);
 
-		let mut stake = <Stakes<T>>::get(checked_stake_key);
-
-		// XXX: Edit stake amount
+		// XXX: Edit stake amount, flag for + or -
 		if !flag {
 			stake.amount += amount;
 		} else {
@@ -308,127 +308,85 @@ impl<T: Trait> Module<T> {
 		}
 
 		// Insert stakee amount into tree and update stake
-		<Stakes<T>>::insert(checked_stake_key, &stake);
+		<Stakes<T>>::insert(stake_key, &stake);
 		<Stakees<T>>::insert(stake.stakee, amount);
 
 		// Apply edit stake amount to tree
-		Self::apply_stake_change(key, stake_key, amount, None);
+		Self::apply_stake_change(key, stake_key, amount, [0u8; 32]);
 	}
 
 
-	fn apply_stake_change(key: Option<Hash>, stake_key: Option<Hash>, amount: BalanceOf<T>, root_: Option<Hash>) {
+	fn apply_stake_change(key: Hash, child_key: Hash, amount: BalanceOf<T>, root_: Hash) {
+		let parent_key = <Stakes<T>>::get(child_key).parent;
 
-		let checked_stake_key = match stake_key {
-			Some(x) => x,
-			None => return,
-		};
-
-		let mut stake = <Stakes<T>>::get(checked_stake_key);
-
-		let parent_key = stake.parent;
-		let checked_parent_key = match parent_key {
-			Some(key) => key,
-			None => return,
-		};
-
-		if parent_key == root_ { // Option is deep equals
-			// we are at root, there is nothing left to update
-			return
+		if parent_key == root_ {
+			// we are at the root, there's nothing left ot update
+			return;
 		}
 
-		let mut parent = <Stakes<T>>::get(checked_parent_key);
+		let mut parent = <Stakes<T>>::get(parent_key);
+
 		if parent.left == key {
 			parent.left_amount += amount;
 		} else {
 			parent.right_amount += amount;
 		}
 
-		<Stakes<T>>::insert(checked_parent_key, parent);
+		<Stakes<T>>::insert(parent_key, parent);
 
 		return Self::apply_stake_change(parent_key, parent_key, amount, root_);
 	}
 
-
-
-	/// TODO make these use hashes
-
-
-
-	fn fixl(stake_key: Option<Hash>, current_key: Option<Hash>, current: Option<Hash>) {
-
-		// check the stake key
-		let checked_stake_key = match stake_key {
-			Some(x) => x,
-			None => return,
-		};
+	fn fixl(stake_key: Hash, current_key: Hash, current: Hash) {
 
 		// fetch the stake
-		let stake = <Stakes<T>>::get(checked_stake_key);
+		let stake = <Stakes<T>>::get(stake_key);
 
-		if stake.left.is_none() {
+		if stake.left == [0u8; 32] {
 			return;
 		}
 
-		let mut stake_left = <Stakes<T>>::get(stake.left.unwrap());
+		let mut stake_left = <Stakes<T>>::get(stake.left);
 		stake_left.parent = current_key;
 
-		// update current
-		let checked_current_key = match current_key {
-			Some(x) => x,
-			None => return,
-		};
-
-		let mut current = <Stakes<T>>::get(checked_current_key);
+		let mut current = <Stakes<T>>::get(current_key);
 
 		current.left = stake.left;
 		current.left_amount = stake.left_amount;
 
 		// update k/v
-		<Stakes<T>>::insert(checked_current_key, current);
-		<Stakes<T>>::insert(stake.left.unwrap(), stake_left);
+		<Stakes<T>>::insert(current_key, current);
+		<Stakes<T>>::insert(stake.left, stake_left);
 	}
 
-	fn fixr(stake_key: Option<Hash>, current_key: Option<Hash>, current: Option<Hash>) {
-
-		// check the stake key
-		let checked_stake_key = match stake_key {
-			Some(x) => x,
-			None => return,
-		};
+	fn fixr(stake_key: Hash, current_key: Hash, current: Hash) {
 
 		// fetch the stake
-		let stake = <Stakes<T>>::get(checked_stake_key);
+		let stake = <Stakes<T>>::get(stake_key);
 
-		if stake.right.is_none() {
+		if stake.right== [0u8; 32] {
 			return;
 		}
 
-		let mut stake_right = <Stakes<T>>::get(stake.right.unwrap());
+		let mut stake_right = <Stakes<T>>::get(stake.right);
 		stake_right.parent = current_key;
 
-		// update current
-		let checked_current_key = match current_key {
-			Some(x) => x,
-			None => return,
-		};
+		let mut current = <Stakes<T>>::get(current_key);
 
-		let mut current = <Stakes<T>>::get(checked_current_key);
-
-		current.right = stake.right ;
+		current.right = stake.right;
 		current.right_amount = stake.right_amount;
 
 		// update k/v
-		<Stakes<T>>::insert(checked_current_key, current);
-		<Stakes<T>>::insert(stake.left.unwrap(), stake_right);
+		<Stakes<T>>::insert(current_key, current);
+		<Stakes<T>>::insert(stake.right, stake_right);
 	}
 
 	// todo: update error types
-	fn pull_unlocking(key: Option<Hash>, amount: BalanceOf<T>) -> Result<(), Error<T>> {
-		let checked_key = match key {
-			Some(x) => x,
-			_ => return Err(Error::<T>::UnlockPeriodNonExhasted),
-		};
-		let mut unlock = <Unlockings<T>>::get(checked_key);
+	fn pull_unlocking(key: Hash, amount: BalanceOf<T>) -> Result<(), Error<T>> {
+		if key == [0u8; 32] {
+			return Err(Error::<T>::UnlockPeriodNonExhasted);
+		}
+		let mut unlock = <Unlockings<T>>::get(key);
 
 		// Lock period has not completed
 		if T::Time::now() < unlock.unlock_at {
@@ -437,11 +395,11 @@ impl<T: Trait> Module<T> {
 
 		// Remove if locking whole unlock
 		if amount == unlock.amount {
-			<Unlockings<T>>::remove(checked_key);
+			<Unlockings<T>>::remove(key);
 		} else {
 			ensure!(unlock.amount >= amount, Error::<T>::RelockAmount);
 			unlock.amount -= amount;
-			<Unlockings<T>>::insert(checked_key, unlock);
+			<Unlockings<T>>::insert(key, unlock);
 		}
 		Ok(())
 	}
@@ -592,27 +550,23 @@ mod test {
 	}
 
 	#[test]
-	pub fn test_add_to_existing_stake() {
+	pub fn test_unlock_stake() {
 		let alice = alice();
+		let bob = bob();
 		execute(|| {
 			// Alice has an initial balance of 1000
 			Balance::make_free_balance_be(&alice, 1_000);
-
-			// Deposit 100 into the escrow
-			Directory::add_stake(Origin::signed(alice.clone()), 100, alice.clone())
+			Balance::make_free_balance_be(&bob, 1_000);
+			// Alice stakes with bob as stakee
+			let stake_key = Directory::get_key(alice.clone(), bob.clone());
+			Directory::add_stake(Origin::signed(alice.clone()), 100, bob.clone())
 				.expect("Failed to create a stake");
 
-			Directory::add_stake(Origin::signed(alice.clone()), 100, alice.clone())
-				.expect("Failed to create a stake");
+			assert_eq!(Balance::free_balance(alice.clone()), 900);
+			assert_eq!(<Stakes<Test>>::get(stake_key).amount, 100);
 
-			assert_eq!(Balance::free_balance(alice.clone()), 800);
-			//assert_eq!(<Stakes<Test>>::get().amount, 100);
+			Directory::unlock_stake(Origin::signed(alice.clone()), 50, bob.clone());
+			println!("unlockings: {:?}", <Unlockings<Test>>::get(stake_key));
 		})
-	}
-
-	#[test]
-	pub fn test_unlock_stake() {
-		let alice = alice();
-
 	}
 }
