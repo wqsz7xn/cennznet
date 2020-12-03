@@ -340,7 +340,7 @@ mod test {
 
 	fn bob() -> AccountId32 {
 		<ed25519::Pair as Pair>::from_string("//Bob", None)
-			.expect("Could not create Alice keychain pair")
+			.expect("Could not create Bob keychain pair")
 			.public()
 			.into()
 	}
