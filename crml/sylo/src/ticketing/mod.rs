@@ -558,8 +558,8 @@ mod test {
 
 	#[test]
 	fn test_redeem_insufficient_funds() {
-		let keychain =
-			<ed25519::Pair as Pair>::from_string("//Alice", None).expect("Could not create ECDSA Alice keychain pair");
+		let keychain = <ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create ED25519 Alice keychain pair");
 		let alice: AccountId32 = keychain.public().into();
 
 		test_redeem_with(
@@ -580,8 +580,8 @@ mod test {
 
 	#[test]
 	fn test_redeem_funds_taken_from_penalty() {
-		let keychain =
-			<ed25519::Pair as Pair>::from_string("//Alice", None).expect("Could not create ECDSA Alice keychain pair");
+		let keychain = <ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create ED25519 Alice keychain pair");
 		let alice: AccountId32 = keychain.public().into();
 
 		test_redeem_with(
@@ -606,8 +606,8 @@ mod test {
 
 	#[test]
 	fn test_redeem_losing_ticket() {
-		let keychain =
-			<ed25519::Pair as Pair>::from_string("//Alice", None).expect("Could not create ECDSA Alice keychain pair");
+		let keychain = <ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create ED25519 Alice keychain pair");
 		let alice: AccountId32 = keychain.public().into();
 
 		// Winning probability is 10%
@@ -673,8 +673,8 @@ mod test {
 
 	#[test]
 	fn test_redeem_twice() {
-		let keychain =
-			<ed25519::Pair as Pair>::from_string("//Alice", None).expect("Could not create ECDSA Alice keychain pair");
+		let keychain = <ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create ED25519 Alice keychain pair");
 		let alice: AccountId32 = keychain.public().into();
 		let bob = bob();
 		execute(|| {
@@ -706,6 +706,42 @@ mod test {
 
 			Ticketing::redeem(Origin::signed(bob.clone()), ticket, receiver_rand, sig)
 				.expect_err("This ticket cannot be redeemed twice");
+		})
+	}
+
+	#[test]
+	fn test_redeem_invalid_signature() {
+		let keychain1 = <ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create ED25519 Alice keychain pair");
+		let alice: AccountId32 = keychain1.public().into();
+		let keychain2 =
+			<ed25519::Pair as Pair>::from_string("//Bob", None).expect("Could not create ED25519 Alice keychain pair");
+		let bob: AccountId32 = keychain2.public().into();
+
+		execute(|| {
+			Time::set_timestamp(1_000);
+
+			Balance::make_free_balance_be(&alice, 1_000);
+			Ticketing::deposit_escrow(Origin::signed(alice.clone()), 150).expect("Failed to deposit into the escrow");
+			Ticketing::deposit_penalty(Origin::signed(alice.clone()), 50).expect("Failed to deposit into the penalty");
+			Balance::make_free_balance_be(&bob, 1_000);
+
+			let receiver_rand = U256::from(1234);
+			let receiver_rand_hash = keccak_256(receiver_rand.encode().as_ref());
+			let ticket = Ticket {
+				sender: alice.clone(),
+				receiver: bob.clone(),
+				face_value: 100,
+				win_prob: U256::max_value() / 100 * 80,
+				expiration: 2_000,
+				receiver_rand_hash,
+				sender_nonce: 111,
+			};
+			let ticket_hash = keccak_256(ticket.encode().as_ref());
+			let sig: MultiSignature = keychain2.sign(&ticket_hash).into(); // The receiver should not be signing the message
+
+			Ticketing::redeem(Origin::signed(bob.clone()), ticket.clone(), receiver_rand, sig.clone())
+				.expect_err("Ticket should have had the wrong signature");
 		})
 	}
 }
