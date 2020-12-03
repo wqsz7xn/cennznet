@@ -1,18 +1,18 @@
-use frame_support::{decl_error, decl_module, decl_storage, dispatch::DispatchResult, ensure, traits::{WithdrawReason, Currency, ExistenceRequirement, Time}};
+use frame_support::{decl_error, decl_module, decl_storage, ensure, traits::{WithdrawReason, Currency, ExistenceRequirement, Time}};
 use frame_system::ensure_signed;
 use codec::{Decode, Encode};
 use sp_io::hashing::{keccak_256};
 use sp_core::U256;
 use sp_runtime::{DispatchError};
 
-// TODO: Make unlock duration setable by properly permissioned entity?
-const UNLOCK_DURATION: u32 = 1;
+// TODO: set this to a sensible value
+const UNLOCK_DURATION: u32 = 0;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 type Timestamp<T> = <<T as Trait>::Time as Time>::Moment;
 type Hash = [u8; 32];
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Debug)]
 pub struct Stake<AccountId, Balance> {
 	amount : Balance , // Amount of the stake
 
@@ -26,7 +26,7 @@ pub struct Stake<AccountId, Balance> {
     right : Option<Hash>, // Hash of right child 
 }
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Debug)]
 pub struct Unlock<Balance, Timestamp> {
 	amount: Balance, // Amount of stake unlocking
     unlock_at: Timestamp, // Block number stake becomes withdrawable
@@ -95,8 +95,10 @@ decl_module! {
 				let current_stake_key = parent;
 				let mut current_stake = <Stakes<T>>::get(current_stake_key);
 
+				println!("parent: {:?}", parent);
 				while !(parent == [0u8; 32]) { 
 					let next;
+					println!("current stake: {:?}", current_stake);
 					if current_stake.left_amount < current_stake.right_amount {
 						next = current_stake.left;
 					} else {
@@ -126,7 +128,8 @@ decl_module! {
 			let mut stake = <Stakes<T>>::get(&key);
 
 			// Set the root if it's the first stake
-			if stake.parent.is_none() { 
+			//println!("{:?}", stake.parent);
+			if stake.parent == Some([0u8; 32]){ 
 				Root::put(key);
 			}
 
@@ -272,6 +275,7 @@ impl<T: Trait> Module<T> {
 
 	fn set_child(key: Option<Hash>, old_key : Option<Hash>, new_key: Option<Hash>) {
 
+		println!("set child: key: {:?}", key);
 		let checked_key = match key {
 			Some(x) => x,
 			None => return,
@@ -465,4 +469,150 @@ impl<T: Trait> Module<T> {
 	// 		root_stake.amount + root_stake.left_amount + root_stake.right_amount
 	// 	}
 	// }
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use crate::mock::Test as MockTest;
+	use frame_support::{impl_outer_origin, parameter_types};
+	use pallet_balances::Module as BalanceModule;
+	use pallet_timestamp::Module as TimeModule;
+	use sp_core::{crypto::AccountId32, ecdsa, ed25519, Pair, sr25519};
+	use sp_runtime::{MultiSigner, traits::IdentifyAccount};
+
+	#[derive(Clone, Eq, PartialEq)]
+	pub struct Test;
+
+	macro_rules! copy_type_def {
+		($type_ident:ident) => {
+			type $type_ident = <MockTest as frame_system::Trait>::$type_ident;
+		};
+	}
+
+	impl frame_system::Trait for Test {
+		type AccountId = AccountId32;
+		type Origin = Origin;
+		type Lookup = sp_runtime::traits::IdentityLookup<Self::AccountId>;
+		copy_type_def!(BaseCallFilter);
+		copy_type_def!(Index);
+		copy_type_def!(BlockNumber);
+		copy_type_def!(Hash);
+		copy_type_def!(Hashing);
+		copy_type_def!(Header);
+		copy_type_def!(Event);
+		copy_type_def!(BlockHashCount);
+		copy_type_def!(MaximumBlockWeight);
+		copy_type_def!(DbWeight);
+		copy_type_def!(BlockExecutionWeight);
+		copy_type_def!(Call);
+		copy_type_def!(ExtrinsicBaseWeight);
+		copy_type_def!(MaximumExtrinsicWeight);
+		copy_type_def!(MaximumBlockLength);
+		copy_type_def!(AvailableBlockRatio);
+		copy_type_def!(Version);
+		copy_type_def!(PalletInfo);
+		copy_type_def!(AccountData);
+		copy_type_def!(OnNewAccount);
+		copy_type_def!(OnKilledAccount);
+		copy_type_def!(SystemWeightInfo);
+	}
+
+	impl_outer_origin! {
+		pub enum Origin for Test where system = frame_system {}
+	}
+
+	impl Trait for Test {
+		type Currency = BalanceModule<Test>;
+		//type WeightInfo = ();
+		type Time = TimeModule<Test>;
+	}
+
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 1;
+		pub const MinimumPeriod: u64 = 5;
+	}
+
+	impl pallet_balances::Trait for Test {
+		type Balance = u64;
+		type Event = <Self as frame_system::Trait>::Event;
+		type DustRemoval = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type AccountStore = frame_system::Module<Self>;
+		type MaxLocks = ();
+		type WeightInfo = ();
+	}
+	impl pallet_timestamp::Trait for Test {
+		type Moment = u64;
+		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
+		type WeightInfo = ();
+	}
+
+	type Directory = Module<Test>;
+	type Balance = BalanceModule<Test>;
+	type Time = TimeModule<Test>;
+
+	fn alice() -> AccountId32 {
+		<ed25519::Pair as Pair>::from_string("//Alice", None)
+			.expect("Could not create Alice keychain pair")
+			.public()
+			.into()
+	}
+
+	fn bob() -> AccountId32 {
+		<ed25519::Pair as Pair>::from_string("//Bob", None)
+			.expect("Could not create Alice keychain pair")
+			.public()
+			.into()
+	}
+
+	fn execute<F: Fn()>(execute: F) {
+		sp_io::TestExternalities::from(
+			frame_system::GenesisConfig::default()
+				.build_storage::<Test>()
+				.unwrap()
+		).execute_with(execute)
+	}
+
+	#[test]
+	pub fn test_create_stake() {
+		let alice = alice();
+		execute(|| {
+			// Alice has an initial balance of 1000
+			Balance::make_free_balance_be(&alice, 1_000);
+
+			// Deposit 100 into the escrow
+			Directory::add_stake(Origin::signed(alice.clone()), 100, alice.clone())
+				.expect("Failed to create a stake");
+
+			assert_eq!(Balance::free_balance(alice.clone()), 900);
+			//assert_eq!(<Stakes<Test>>::get().amount, 100);
+		})
+	}
+
+	#[test]
+	pub fn test_add_to_existing_stake() {
+		let alice = alice();
+		execute(|| {
+			// Alice has an initial balance of 1000
+			Balance::make_free_balance_be(&alice, 1_000);
+
+			// Deposit 100 into the escrow
+			Directory::add_stake(Origin::signed(alice.clone()), 100, alice.clone())
+				.expect("Failed to create a stake");
+
+			Directory::add_stake(Origin::signed(alice.clone()), 100, alice.clone())
+				.expect("Failed to create a stake");
+
+			assert_eq!(Balance::free_balance(alice.clone()), 800);
+			//assert_eq!(<Stakes<Test>>::get().amount, 100);
+		})
+	}
+
+	#[test]
+	pub fn test_unlock_stake() {
+		let alice = alice();
+
+	}
 }
