@@ -208,7 +208,7 @@ decl_module! {
 						Self::set_child(current_parent, current_parent, stake_key); // set parents child
 
 						// Unstake (take away from stake)amount
-						Self::apply_stake_change(stake_key, stake_key, current.amount, current.parent);
+						Self::apply_stake_change(stake_key, stake_key, current.amount, current.parent, true);
 
 						Self::set_child(current_parent, stake_key, [0u8; 32]);
 					}
@@ -312,11 +312,11 @@ impl<T: Trait> Module<T> {
 		<Stakees<T>>::insert(stake.stakee, amount);
 
 		// Apply edit stake amount to tree
-		Self::apply_stake_change(key, stake_key, amount, [0u8; 32]);
+		Self::apply_stake_change(key, stake_key, amount, [0u8; 32], false);
 	}
 
 
-	fn apply_stake_change(key: Hash, child_key: Hash, amount: BalanceOf<T>, root_: Hash) {
+	fn apply_stake_change(key: Hash, child_key: Hash, amount: BalanceOf<T>, root_: Hash, flag: bool) {
 		let parent_key = <Stakes<T>>::get(child_key).parent;
 
 		if parent_key == root_ {
@@ -326,15 +326,24 @@ impl<T: Trait> Module<T> {
 
 		let mut parent = <Stakes<T>>::get(parent_key);
 
-		if parent.left == key {
-			parent.left_amount += amount;
+		// XXX obviously you don't want to do it like this dummy
+		if !flag {
+			if parent.left == key {
+				parent.left_amount += amount;
+			} else {
+				parent.right_amount += amount;
+			}
 		} else {
-			parent.right_amount += amount;
+			if parent.left == key {
+				parent.left_amount -= amount;
+			} else {
+				parent.right_amount -= amount;
+			}
 		}
 
 		<Stakes<T>>::insert(parent_key, parent);
 
-		return Self::apply_stake_change(parent_key, parent_key, amount, root_);
+		return Self::apply_stake_change(parent_key, parent_key, amount, root_, flag);
 	}
 
 	fn fixl(stake_key: Hash, current_key: Hash, current: Hash) {
@@ -558,15 +567,27 @@ mod test {
 			Balance::make_free_balance_be(&alice, 1_000);
 			Balance::make_free_balance_be(&bob, 1_000);
 			// Alice stakes with bob as stakee
-			let stake_key = Directory::get_key(alice.clone(), bob.clone());
+			let key = Directory::get_key(alice.clone(), bob.clone());
 			Directory::add_stake(Origin::signed(alice.clone()), 100, bob.clone())
 				.expect("Failed to create a stake");
 
 			assert_eq!(Balance::free_balance(alice.clone()), 900);
-			assert_eq!(<Stakes<Test>>::get(stake_key).amount, 100);
+			assert_eq!(<Stakes<Test>>::get(key).amount, 100);
 
+			// unlock stake
 			Directory::unlock_stake(Origin::signed(alice.clone()), 50, bob.clone());
-			println!("unlockings: {:?}", <Unlockings<Test>>::get(stake_key));
+
+			// check unlock amount
+			let unlock = <Unlockings<Test>>::get(key);
+			assert_eq!(unlock.amount, 50);
+
+			// check that stake is updated
+			assert_eq!(<Stakes<Test>>::get(key).amount, 50);
+
+
+			
+
+			println!("unlockings: {:?}", unlock);
 		})
 	}
 }
