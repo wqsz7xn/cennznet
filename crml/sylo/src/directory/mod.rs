@@ -94,30 +94,27 @@ decl_module! {
 		fn add_stake(origin, amount: BalanceOf<T>, stakee: T::AccountId) -> Result<(), DispatchError> {
 			ensure!(amount != (0 as u32).into(), Error::<T>::ZeroStake);
 
-
 			let staker = ensure_signed(origin)?;
 			let key = Self::get_key(staker.clone(), stakee.clone());
 
-			// Stake does not exist, create a stake (assumption that a zero stake indiacates that it does not exist)
+			// Stake does not exist, create a stake
 			if <Stakes<T>>::get(key).amount == (0 as u32).into() {
 
 				let mut parent_key = Root::get();
 				
-				// Check if root (parent) exists and fetch it, otherwise None
+				// Check if root (parent) exists and fetch it
 				let mut current_stake_key = parent_key;
 				let mut current_stake = <Stakes<T>>::get(current_stake_key);
 
-				//println!("parent: {:?}", parent);
-				while !(parent_key == [0u8; 32]) { 
+				while parent_key != EMPTY_HASH { 
 					let next: Hash;
-					//println!("current stake: {:?}", current_stake);
 					if current_stake.left_amount < current_stake.right_amount {
 						next = current_stake.left;
 					} else {
 						next = current_stake.right;
 					}
 
-					if next == [0u8; 32]  {
+					if next == EMPTY_HASH  {
 						break;
 					}
 
@@ -126,20 +123,13 @@ decl_module! {
 					current_stake = <Stakes<T>>::get(current_stake_key);
 				}
 
-				Self::set_child(current_stake_key, [0u8; 32], key);
+				Self::set_child(current_stake_key, EMPTY_HASH, key);
 
 				// Create a stake and insert it into directory
 				let mut stake = <Stakes<T>>::get(key);
 				stake.parent = parent_key;
 				stake.stakee = stakee.clone();
-
-				// println!("=== ADDING STAKE ===");
-				// println!("STAKEE: {:?}", stake.stakee.clone());
-				// println!("KEY : {:?}", key.clone());
-				// println!("LEFT: {:?}", stake.left.clone());
-				// println!("RIGHT: {:?}", stake.right.clone());
-				// println!("AMOUNT : {:?}", stake.amount.clone());
-				<Stakes<T>>::insert(key, stake); // insert it into directory
+				<Stakes<T>>::insert(key, stake);
 			}
 
 			// Now that the key for the stake is defined fetch it, or if it was already defined fetch it
@@ -147,7 +137,7 @@ decl_module! {
 
 			// Set the root if it's the first stake
 			//println!("{:?}", stake.parent);
-			if stake.parent == [0u8; 32] { 
+			if stake.parent == EMPTY_HASH { 
 				Root::put(key);
 			}
 
@@ -184,12 +174,12 @@ decl_module! {
 				let parent_key = stake.parent;
 				//let parent = <Stakes<T>>::get(parent_key);
 
-				if child_key == [0u8; 32] {
-					Self::set_child(parent_key, stake_key, [0u8; 32]);
+				if child_key == EMPTY_HASH {
+					Self::set_child(parent_key, stake_key, EMPTY_HASH);
 
 					// The only staker is removed, reset root
-					if stake.parent == [0u8; 32] {
-						Root::set([0u8; 32]);	
+					if stake.parent == EMPTY_HASH {
+						Root::set(EMPTY_HASH);	
 					}
 				} else {
 					let current_key = child_key;
@@ -203,7 +193,7 @@ decl_module! {
 							next_key = current.right;
 						}
 
-						if next_key == [0u8; 32] {
+						if next_key == EMPTY_HASH {
 							break;
 						}
 
@@ -223,16 +213,19 @@ decl_module! {
 						Self::fixl(stake_key, child_key);
 						Self::fixr(stake_key, child_key);
 
+						// Refetch stake after above changes
+						stake = <Stakes<T>>::get(stake_key);
+
 						// Place stake where current was and
 						stake.parent = current_parent; // set parent
 						<Stakes<T>>::insert(stake_key, stake);
 
 						Self::set_child(current_parent, current_parent, stake_key); // set parents child
 
-						// Unstake (take away from stake)amount
-						Self::apply_stake_change(stake_key, current.amount, current.parent, true);
+						// Unstake (take away from stake) amount
+						Self::apply_stake_change(stake_key, current.amount, true);
 
-						Self::set_child(current_parent, stake_key, [0u8; 32]);
+						Self::set_child(current_parent, stake_key, EMPTY_HASH);
 					}
 					else if stake.left == child_key {
 						Self::fixr(stake_key, child_key);
@@ -241,7 +234,7 @@ decl_module! {
 						Self::fixl(stake_key, child_key);
 					}
 
-					if current.parent == [0u8; 32] {
+					if current.parent == EMPTY_HASH {
 						Root::put(child_key);
 					}
 				}
@@ -332,14 +325,14 @@ impl<T: Trait> Module<T> {
 		<Stakees<T>>::insert(stake.stakee, amount);
 
 		// Apply edit stake amount to tree
-		Self::apply_stake_change(stake_key, amount, [0u8; 32], flag);
+		Self::apply_stake_change(stake_key, amount, flag);
 	}
 
 
-	fn apply_stake_change(stake_key: Hash, amount: BalanceOf<T>, root_: Hash, flag: bool) {
+	fn apply_stake_change(stake_key: Hash, amount: BalanceOf<T>, flag: bool) {
 		let parent_key = <Stakes<T>>::get(stake_key).parent;
-
-		if parent_key == root_ {
+		
+		if parent_key == [0u8; 32] {
 			// we are at the root, there's nothing left ot update
 			return;
 		}
@@ -363,7 +356,7 @@ impl<T: Trait> Module<T> {
 
 		<Stakes<T>>::insert(parent_key, parent);
 
-		return Self::apply_stake_change(parent_key, amount, root_, flag);
+		return Self::apply_stake_change(parent_key, amount, flag);
 	}
 
 	fn fixl(stake_key: Hash, current_key: Hash) {
@@ -371,7 +364,7 @@ impl<T: Trait> Module<T> {
 		// fetch the stake
 		let stake = <Stakes<T>>::get(stake_key);
 
-		if stake.left == [0u8; 32] {
+		if stake.left == EMPTY_HASH {
 			return;
 		}
 
@@ -393,7 +386,7 @@ impl<T: Trait> Module<T> {
 		// fetch the stake
 		let stake = <Stakes<T>>::get(stake_key);
 
-		if stake.right== [0u8; 32] {
+		if stake.right== EMPTY_HASH {
 			return;
 		}
 
@@ -412,7 +405,7 @@ impl<T: Trait> Module<T> {
 
 	// todo: update error types
 	fn pull_unlocking(unlock_key: Hash, amount: BalanceOf<T>) -> Result<(), Error<T>> {
-		if unlock_key == [0u8; 32] {
+		if unlock_key == EMPTY_HASH {
 			return Err(Error::<T>::UnlockPeriodNonExhasted);
 		}
 		let mut unlock = <Unlockings<T>>::get(unlock_key);
@@ -431,13 +424,13 @@ impl<T: Trait> Module<T> {
 
 	// Select a stake weighted node
 	// fn scan(point: U256) -> Hash {
-	// 	if Root::get() == [0u8; 32] {
-	// 		return [0u8; 32];
+	// 	if Root::get() == EMPTY_HASH {
+	// 		return EMPTY_HASH;
 	// 	}
 
 	// 	//let expectedValue = U256::from(Self::get_total_stake()) * point / U256::max_value();
 
-	// 	return [0u8; 32];
+	// 	return EMPTY_HASH;
 	// }
 
 	// Retrieve the total stake weight
@@ -604,7 +597,7 @@ mod test {
 
 			// First stake in tree, should be assigned as root
 			assert_eq!(key, Root::get()); 
-			assert_eq!(stake.parent, [0u8; 32]);
+			assert_eq!(stake.parent, EMPTY_HASH);
 
 			assert_eq!(stake.amount, 100);
 			assert_eq!(stake.left_amount, 0);
@@ -614,8 +607,8 @@ mod test {
 			assert_eq!(stake.stakee, a.clone()); 
 
 			// Only stake in tree, thus has no children
-			assert_eq!(stake.left, [0u8; 32]); 
-			assert_eq!(stake.right, [0u8; 32]);
+			assert_eq!(stake.left, EMPTY_HASH); 
+			assert_eq!(stake.right, EMPTY_HASH);
 
 			// Stake is recorded in stakees
 			let stakee_balance = <Stakees<Test>>::get(a.clone());
@@ -759,7 +752,7 @@ mod test {
 			assert_eq!(Root::get(), a_key);
 			assert_eq!(a_stake.amount, 500);
 			assert_eq!(a_stake.stakee, a.clone());
-			assert_eq!(a_stake.parent, [0u8; 32]);
+			assert_eq!(a_stake.parent, EMPTY_HASH);
 			assert_eq!(a_stake.left, b_key);
 			assert_eq!(a_stake.left_amount, 500);
 			assert_eq!(a_stake.right_amount, 550);
@@ -770,7 +763,7 @@ mod test {
 			assert_eq!(b_stake.parent, a_key);
 			assert_eq!(b_stake.left, e_key);
 			assert_eq!(b_stake.left_amount, 100);
-			assert_eq!(b_stake.right, [0u8; 32]);
+			assert_eq!(b_stake.right, EMPTY_HASH);
 			assert_eq!(b_stake.right_amount, 0);
 
 			assert_eq!(c_stake.amount, 300);
@@ -823,7 +816,7 @@ mod test {
 			assert_eq!(Root::get(), a_key);
 			assert_eq!(a_stake.amount, 500);
 			assert_eq!(a_stake.stakee, a.clone());
-			assert_eq!(a_stake.parent, [0u8; 32]);
+			assert_eq!(a_stake.parent, EMPTY_HASH);
 			assert_eq!(a_stake.left, b_key);
 			assert_eq!(a_stake.left_amount, 500);
 			assert_eq!(a_stake.right_amount, 250);
@@ -833,7 +826,7 @@ mod test {
 			assert_eq!(b_stake.parent, a_key);
 			assert_eq!(b_stake.left, e_key);
 			assert_eq!(b_stake.left_amount, 100);
-			assert_eq!(b_stake.right, [0u8; 32]);
+			assert_eq!(b_stake.right, EMPTY_HASH);
 			assert_eq!(b_stake.right_amount, 0);
 
 			assert_eq!(c_stake.amount, 0);
@@ -898,155 +891,6 @@ mod test {
 	}
 
 
-	// #[test]
-	// pub fn test_stake_tree() {
-	// 	let alice = alice();
-	// 	let bob = bob();
-	// 	let charlie = charlie();
-	// 	let dave = dave();
-
-	// 	execute(|| {
-	// 		Balance::make_free_balance_be(&alice, 1_000);
-	// 		Balance::make_free_balance_be(&bob, 1_000);
-	// 		Balance::make_free_balance_be(&charlie, 1_000);
-	// 		Balance::make_free_balance_be(&dave, 1_000);
-
-
-	// 		Directory::add_stake(Origin::signed(alice.clone()), 500, alice.clone())
-	// 			.expect("Failed to create a stake");
-	// 		Directory::add_stake(Origin::signed(bob.clone()), 300, bob.clone())
-	// 			.expect("Failed to create a stake");
-	// 		Directory::add_stake(Origin::signed(charlie.clone()), 200, charlie.clone())
-	// 			.expect("Failed to create a stake");
-	// 		Directory::add_stake(Origin::signed(dave.clone()), 100, dave.clone())
-	// 			.expect("Failed to create a stake");
-
-	// 		let alice_key = Directory::get_key(alice.clone(), alice.clone());
-	// 		let bob_key = Directory::get_key(bob.clone(), bob.clone());
-	// 		let charlie_key = Directory::get_key(charlie.clone(), charlie.clone());
-	// 		let dave_key = Directory::get_key(dave.clone(), dave.clone());
-
-	// 		let mut alice_stake = <Stakes<Test>>::get(alice_key);
-	// 		let mut bob_stake = <Stakes<Test>>::get(bob_key);
-	// 		let mut charlie_stake = <Stakes<Test>>::get(charlie_key);
-	// 		let mut dave_stake = <Stakes<Test>>::get(dave_key);
-                       
-	// 		//         Alice      
-	// 		//           /\       
-	// 		//          /  \      
-	// 		//         /    \     
-	// 		//        v      v    
-	// 		//      Bob   Charlie 
-	// 		//      /\       /\   
-	// 		//     /  \     /  \  
-	// 		//    v    v   /    \ 
-	// 		//            v      v
-	// 		//          Dave      
-
-	// 		assert_eq!(Directory::get_total_stake(), 1100);
-
-	// 		// Verify tree structure
-	// 		assert_eq!(alice_stake.parent, [0u8; 32]);
-	// 		assert_eq!(alice_stake.left, bob_key);
-	// 		assert_eq!(alice_stake.right, charlie_key);
-
-	// 		assert_eq!(bob_stake.parent, alice_key); 
-	// 		assert_eq!(bob_stake.left, [0u8; 32]);
-	// 		assert_eq!(bob_stake.right, [0u8; 32]);
-
-	// 		assert_eq!(charlie_stake.parent, alice_key); 
-	// 		assert_eq!(charlie_stake.left, dave_key);
-	// 		assert_eq!(charlie_stake.right, [0u8; 32]);
-
-	// 		assert_eq!(dave_stake.parent, charlie_key); 
-	// 		assert_eq!(dave_stake.left, [0u8; 32]);
-	// 		assert_eq!(dave_stake.right, [0u8; 32]);
-
-	// 		println!("======= TREE CREATION OK ======");
-
-	// 		// Verify that stakes have been withdrawn from account
-	// 		assert_eq!(Balance::free_balance(alice.clone()), 500);
-	// 		assert_eq!(Balance::free_balance(bob.clone()), 700);
-	// 		assert_eq!(Balance::free_balance(charlie.clone()), 800);
-	// 		assert_eq!(Balance::free_balance(dave.clone()), 900);
-
-
-	// 		// ==== Start unlocking stake ==== 
-
-	// 		// Remove leaf node
-	// 		println!("======= REMOVING LEAF ======");
-	// 		Directory::unlock_stake(Origin::signed(dave.clone()), 100, dave.clone());
-	// 		Directory::unstake(Origin::signed(dave.clone()), dave.clone());
-
-	// 		alice_stake = <Stakes<Test>>::get(alice_key);
-	// 		bob_stake = <Stakes<Test>>::get(bob_key);
-	// 		charlie_stake = <Stakes<Test>>::get(charlie_key);
-	// 		dave_stake = <Stakes<Test>>::get(dave_key);
-
-	// 		println!("alice stake : {:?}", alice_key);
-	// 		println!("bob stake : {:?}", bob_key);
-	// 		println!("charlie stake : {:?}", charlie_key);
-	// 		println!("dave stake : {:?}", dave_key);
-
-	// 		println!("alice stake true : {:?}", alice_stake);
-	// 		println!("bob stake true : {:?}", bob_stake);
-	// 		println!("charlie stake true : {:?}", charlie_stake);
-	// 		println!("dave stake true : {:?}", dave_stake);
-
-	// 		// Verify tree structure
-	// 		assert_eq!(alice_stake.parent, [0u8; 32]);
-	// 		assert_eq!(alice_stake.left, bob_key);
-	// 		assert_eq!(alice_stake.right, charlie_key);
-
-	// 		assert_eq!(bob_stake.parent, alice_key); 
-	// 		assert_eq!(bob_stake.left, [0u8; 32]);
-	// 		assert_eq!(bob_stake.right, [0u8; 32]);
-
-	// 		assert_eq!(charlie_stake.parent, alice_key); 
-	// 		assert_eq!(charlie_stake.left, [0u8; 32]);
-	// 		assert_eq!(charlie_stake.right, [0u8; 32]);
-
-	// 		// Stake should no longer exist
-	// 		assert_eq!(dave_stake.parent, [0u8; 32]); 
-	// 		assert_eq!(dave_stake.left, [0u8; 32]);
-	// 		assert_eq!(dave_stake.right, [0u8; 32]);
-
-	// 		println!("======= REMOVING LEAF OK ======");
-
-	// 		//         Alice      
-	// 		//           /\       
-	// 		//          /  \      
-	// 		//         /    \     
-	// 		//        v      v    
-	// 		//      Bob   Charlie 
-
-	// 		// Completely unstake (root)
-	// 		Directory::unlock_stake(Origin::signed(alice.clone()), 500, alice.clone());
-	// 		Time::set_timestamp(10); 
-	// 		Directory::unstake(Origin::signed(alice.clone()), alice.clone());
-	// 		println!("Root: {:?}", Root::get());
-	// 		//assert_eq!(Directory::get_total_stake(), 600);
-
-	// 		alice_stake = <Stakes<Test>>::get(alice_key);
-	// 		bob_stake = <Stakes<Test>>::get(bob_key);
-	// 		charlie_stake = <Stakes<Test>>::get(charlie_key);
-	// 		dave_stake = <Stakes<Test>>::get(dave_key);
-
-	// 		println!("alice stake : {:?}", alice_key);
-	// 		println!("bob stake : {:?}", bob_key);
-	// 		println!("charlie stake : {:?}", charlie_key);
-	// 		println!("dave stake : {:?}", dave_key);
-
-	// 		println!("alice stake true : {:?}", alice_stake);
-	// 		println!("bob stake true : {:?}", bob_stake);
-	// 		println!("charlie stake true : {:?}", charlie_stake);
-	// 		println!("dave stake true : {:?}", dave_stake);
-
-				
-	// 		// Remove middle left node
-				
-	// 	})
-	// }
 
 	#[test]
 	pub fn update_stake() {
