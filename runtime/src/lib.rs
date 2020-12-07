@@ -508,7 +508,7 @@ impl crml_sylo::listing::Trait for Runtime {
 }
 
 impl crml_sylo::directory::Trait for Runtime {
-	// type WeightInfo = ();
+	type WeightInfo = ();
 	type Time = Timestamp;
 	type Currency = SpendingAssetCurrency<Self>;
 }
