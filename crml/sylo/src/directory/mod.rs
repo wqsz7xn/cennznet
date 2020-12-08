@@ -172,7 +172,6 @@ decl_module! {
 				}
 
 				let parent_key = stake.parent;
-				//let parent = <Stakes<T>>::get(parent_key);
 
 				if child_key == EMPTY_HASH {
 					Self::set_child(parent_key, stake_key, EMPTY_HASH);
@@ -182,7 +181,7 @@ decl_module! {
 						Root::set(EMPTY_HASH);	
 					}
 				} else {
-					let current_key = child_key;
+					let mut current_key = child_key;
 					let mut current = <Stakes<T>>::get(current_key);
 
 					loop {
@@ -198,10 +197,14 @@ decl_module! {
 						}
 
 						child_key = next_key;
+						current_key = child_key;
 						current = <Stakes<T>>::get(next_key);
 					}
 
+					//current = <Stakes<T>>::get(current_key);
+
 					let current_parent = current.parent;
+					// TODO: WTF ARE YOU DOING
 					Self::set_child(parent_key, stake_key, child_key);
 					current.parent = stake.parent;
 					<Stakes<T>>::insert(current_key, &current);
@@ -212,9 +215,15 @@ decl_module! {
 						// Move the children of stake to current
 						Self::fixl(stake_key, child_key);
 						Self::fixr(stake_key, child_key);
+						println!("EVE STAKE AFTER MOVING: {:?}", <Stakes<T>>::get(child_key));
 
 						// Refetch stake after above changes
 						stake = <Stakes<T>>::get(stake_key);
+						// current = <Stakes<T>>::get(child_key);
+
+						// XXX: Update errors
+						// ensure!(stake.right_amount == current.right_amount, Error::<T>::NotStaking);
+						// ensure!(stake.left_amount == current.left_amount, Error::<T>::NotStaking);
 
 						// Place stake where current was and
 						stake.parent = current_parent; // set parent
@@ -300,7 +309,7 @@ impl<T: Trait> Module<T> {
 			stake.left = new_key;
 		} else {
 			stake.right = new_key
-		}
+		} 
 
 		<Stakes<T>>::insert(stake_key, stake);
 	}
@@ -322,24 +331,25 @@ impl<T: Trait> Module<T> {
 
 		// Insert stakee amount into tree and update stake
 		<Stakes<T>>::insert(stake_key, &stake);
-		<Stakees<T>>::insert(stake.stakee, amount);
+		<Stakees<T>>::insert(stake.stakee, stake.amount);
 
 		// Apply edit stake amount to tree
 		Self::apply_stake_change(stake_key, amount, flag);
 	}
 
 
+	// Add or subtract an amount from a stake weight
 	fn apply_stake_change(stake_key: Hash, amount: BalanceOf<T>, flag: bool) {
 		let parent_key = <Stakes<T>>::get(stake_key).parent;
 		
-		if parent_key == [0u8; 32] {
-			// we are at the root, there's nothing left ot update
+		if parent_key == EMPTY_HASH {
+			// we are at the root, there's nothing left to update
 			return;
 		}
 
 		let mut parent = <Stakes<T>>::get(parent_key);
 
-		// XXX obviously you don't want to do it like this dummy
+		// XXX
 		if !flag {
 			if parent.left == stake_key {
 				parent.left_amount += amount;
@@ -428,7 +438,7 @@ impl<T: Trait> Module<T> {
 	// 		return EMPTY_HASH;
 	// 	}
 
-	// 	//let expectedValue = U256::from(Self::get_total_stake()) * point / U256::max_value();
+	// 	let expectedValue = U256::from(Self::get_total_stake()) * point / U256::max_value();
 
 	// 	return EMPTY_HASH;
 	// }
@@ -861,11 +871,67 @@ mod test {
 			assert_eq!(f_stake.right, EMPTY_HASH);
 			assert_eq!(f_stake.right_amount, 0);
 
+
+			// Remove a leaf node
+			Directory::unlock_stake(Origin::signed(f.clone()), 50, f.clone());
+			Time::set_timestamp(50); 
+			Directory::unstake(Origin::signed(f.clone()), f.clone());
+			assert_eq!(Directory::get_total_stake(), 1200);
+
+			// Refetch stakes
+			a_stake = <Stakes<Test>>::get(a_key);
+			b_stake = <Stakes<Test>>::get(b_key);
+			c_stake = <Stakes<Test>>::get(c_key);
+			d_stake = <Stakes<Test>>::get(d_key);
+			e_stake = <Stakes<Test>>::get(e_key);
+			f_stake = <Stakes<Test>>::get(f_key);
+
+			// Verify tree
+			assert_eq!(Root::get(), a_key);
+			assert_eq!(a_stake.amount, 500);
+			assert_eq!(a_stake.stakee, a.clone());
+			assert_eq!(a_stake.parent, EMPTY_HASH);
+			assert_eq!(a_stake.left, b_key);
+			assert_eq!(a_stake.left_amount, 500);
+			assert_eq!(a_stake.right_amount, 200);
+
+			assert_eq!(b_stake.amount, 400);
+			assert_eq!(b_stake.stakee, b.clone());
+			assert_eq!(b_stake.parent, a_key);
+			assert_eq!(b_stake.left, e_key);
+			assert_eq!(b_stake.left_amount, 100);
+			assert_eq!(b_stake.right, EMPTY_HASH);
+			assert_eq!(b_stake.right_amount, 0);
+
+			assert_eq!(d_stake.amount, 200);
+			assert_eq!(d_stake.stakee, d.clone());
+			assert_eq!(d_stake.parent, a_key);
+			assert_eq!(d_stake.left, EMPTY_HASH);
+			assert_eq!(d_stake.left_amount, 0);
+			assert_eq!(d_stake.right, EMPTY_HASH);
+			assert_eq!(d_stake.right_amount, 0);
+
+			assert_eq!(e_stake.amount, 100);
+			assert_eq!(e_stake.stakee, e.clone());
+			assert_eq!(e_stake.parent, b_key);
+			assert_eq!(e_stake.left, EMPTY_HASH);
+			assert_eq!(e_stake.left_amount, 0);
+			assert_eq!(e_stake.right, EMPTY_HASH);
+			assert_eq!(e_stake.right_amount, 0);
+
+			assert_eq!(f_stake.amount, 0);
+			//assert_eq!(f_stake.stakee, f.clone());
+			assert_eq!(f_stake.parent, EMPTY_HASH);
+			assert_eq!(f_stake.left, EMPTY_HASH);
+			assert_eq!(f_stake.left_amount, 0);
+			assert_eq!(f_stake.right, EMPTY_HASH);
+			assert_eq!(f_stake.right_amount, 0);
+
 			// Remove a root node
 			Directory::unlock_stake(Origin::signed(a.clone()), 500, a.clone());
-			Time::set_timestamp(40); 
+			Time::set_timestamp(100); 
 			Directory::unstake(Origin::signed(a.clone()), a.clone());
-			assert_eq!(Directory::get_total_stake(), 750);
+			// assert_eq!(Directory::get_total_stake(), 700);
 
 			// Refetch stakes
 			a_stake = <Stakes<Test>>::get(a_key);
@@ -881,12 +947,6 @@ mod test {
 			println!("dave stake : {:?}", d_key);
 			println!("eve stake : {:?}", e_key);
 			println!("ferdie stake : {:?}", f_key);
-
-			// Remove a leaf node
-
-
-
-
 		})
 	}
 
