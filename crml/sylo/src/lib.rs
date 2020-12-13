@@ -23,6 +23,8 @@ pub mod payment;
 pub mod response;
 pub mod ticketing;
 pub mod vault;
+pub mod listing;
+pub mod directory;
 
 #[cfg(test)]
 pub(crate) mod mock;

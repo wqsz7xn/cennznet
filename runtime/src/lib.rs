@@ -84,6 +84,10 @@ pub use crml_sylo::payment as sylo_payment;
 pub use crml_sylo::response as sylo_response;
 pub use crml_sylo::ticketing as sylo_ticketing;
 pub use crml_sylo::vault as sylo_vault;
+pub use crml_sylo::listing as sylo_listing;
+pub use crml_sylo::directory as sylo_directory;
+
+
 pub use crml_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 pub use prml_generic_asset::{AssetInfo, Call as GenericAssetCall, SpendingAssetCurrency, StakingAssetCurrency};
 
@@ -499,6 +503,17 @@ impl crml_sylo::response::Trait for Runtime {
 impl crml_sylo::vault::Trait for Runtime {
 	type WeightInfo = ();
 }
+
+impl crml_sylo::listing::Trait for Runtime {
+	// type WeightInfo = ();
+}
+
+impl crml_sylo::directory::Trait for Runtime {
+	type WeightInfo = ();
+	type Time = Timestamp;
+	type Currency = SpendingAssetCurrency<Self>;
+}
+
 impl crml_sylo::groups::Trait for Runtime {
 	type WeightInfo = ();
 }
@@ -622,7 +637,9 @@ construct_runtime!(
 		SyloPayment: sylo_payment::{Module, Call, Storage} = 28,
 		Attestation: prml_attestation::{Module, Call, Storage, Event<T>} = 29,
 		Rewards: crml_staking_rewards::{Module, Call, Storage, Config, Event<T>} = 30,
-		SyloTicketing: sylo_ticketing::{Module, Call, Storage} = 31,
+		SyloListing: sylo_listing::{Module, Call, Storage} = 31,
+		SyloDirectory: sylo_directory::{Module, Call, Storage} = 32,
+		SyloTicketing: sylo_ticketing::{Module, Call, Storage} = 33,
 	}
 );
 
