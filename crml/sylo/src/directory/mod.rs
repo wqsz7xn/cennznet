@@ -2,10 +2,9 @@ use frame_support::{decl_error, decl_module, decl_storage, ensure, traits::{With
 use frame_system::ensure_signed;
 use codec::{Decode, Encode};
 use sp_io::hashing::{keccak_256};
-use sp_core::U256;
 use sp_runtime::{DispatchError, traits::Bounded};
 
-// TODO: Set this to a sensible value
+// TODO: Set unlock duration to a sensible value
 const UNLOCK_DURATION: u32 = 5;
 const EMPTY_HASH : [u8; 32] = [0u8; 32];
 
@@ -24,7 +23,7 @@ type Hash = [u8; 32];
 
 #[derive(Encode, Decode, Default, Debug, Clone)]
 pub struct Stake<AccountId, Balance> {
-	amount : Balance , // Amount of the stake
+	amount: Balance , // Amount of the stake
 
     left_amount: Balance, // Value of the stake on left branch
 	right_amount: Balance, // Value of the stake on the right branch
@@ -61,12 +60,6 @@ decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// An address must stake above zero tokens
 		ZeroStake,
-		/// Cannot re-stake while funds are unlocking
-		StakeWhileUnlocking,
-		/// Only one stake allowed per address
-		AlreadyStaking,
-		/// The address is not staking
-		NotStaking,
 		/// The unlock period has not been exhausted
 		UnlockPeriodNonExhasted,
 		/// Attempt to unlock more than what is staking
@@ -397,7 +390,7 @@ impl<T: Trait> Module<T> {
 	// todo: update error types
 	fn pull_unlocking(unlock_key: Hash, amount: BalanceOf<T>) -> Result<(), Error<T>> {
 		if unlock_key == EMPTY_HASH {
-			return Err(Error::<T>::UnlockPeriodNonExhasted);
+			return Err(Error::<T>::KeyDoesNotExist);
 		}
 		let mut unlock = <Unlockings<T>>::get(unlock_key);
 
@@ -420,8 +413,7 @@ impl<T: Trait> Module<T> {
 			return None;
 		}
 
-		let total = Self::get_total_stake();
-		let mut expected_val = (total * point) / (BalanceOf::<T>::max_value()-(1 as u32).into());
+		let mut expected_val = (point / BalanceOf::<T>::max_value()) * Self::get_total_stake();
 		let mut current = Root::get();
 
 		loop {
@@ -444,7 +436,6 @@ impl<T: Trait> Module<T> {
 
 	// Retrieve the total stake weight of the directory
 	fn get_total_stake() -> BalanceOf<T> {
-		// empty root nothing staking
 		if !Root::exists() {
 			return (0 as u32).into();
 		}
@@ -1138,11 +1129,11 @@ mod test {
 
 			assert_eq!(Directory::get_total_stake(), 2);
 
+			let selected_1 = Directory::scan(BalanceOf::<Test>::max_value());
+			assert_eq!(selected_1, Some(a.clone()));
+
 			let selected_0 = Directory::scan((0 as u32).into());
 			assert_eq!(selected_0, Some(b.clone()));
-
-			let selected_1 = Directory::scan((BalanceOf::<Test>::max_value()/2)-1);
-			assert_eq!(selected_1, Some(a.clone()));
 		})
 	}
 
