@@ -83,8 +83,7 @@ pub use crml_sylo::inbox as sylo_inbox;
 pub use crml_sylo::payment as sylo_payment;
 pub use crml_sylo::response as sylo_response;
 pub use crml_sylo::vault as sylo_vault;
-pub use crml_sylo::listing as sylo_listing;
-pub use crml_sylo::directory as sylo_directory;
+pub use crml_sylo::smart_money as sylo_smart_money;
 
 
 pub use crml_transaction_payment::{Multiplier, TargetedFeeAdjustment};
@@ -503,11 +502,7 @@ impl crml_sylo::vault::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl crml_sylo::listing::Trait for Runtime {
-	// type WeightInfo = ();
-}
-
-impl crml_sylo::directory::Trait for Runtime {
+impl crml_sylo::smart_money::Trait for Runtime {
 	type WeightInfo = ();
 	type Time = Timestamp;
 	type Currency = SpendingAssetCurrency<Self>;
@@ -631,8 +626,7 @@ construct_runtime!(
 		SyloPayment: sylo_payment::{Module, Call, Storage} = 28,
 		Attestation: prml_attestation::{Module, Call, Storage, Event<T>} = 29,
 		Rewards: crml_staking_rewards::{Module, Call, Storage, Config, Event<T>} = 30,
-		SyloListing: sylo_listing::{Module, Call, Storage} = 31,
-		SyloDirectory: sylo_directory::{Module, Call, Storage} = 32,
+		SyloSmartMoney: sylo_smart_money::{Module, Call, Storage} = 32,
 	}
 );
 
