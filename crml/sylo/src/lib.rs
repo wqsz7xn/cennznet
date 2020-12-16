@@ -21,8 +21,8 @@ pub mod groups;
 pub mod inbox;
 pub mod payment;
 pub mod response;
-pub mod vault;
 pub mod smart_money;
+pub mod vault;
 
 #[cfg(test)]
 pub(crate) mod mock;

@@ -1,16 +1,18 @@
-use frame_support::{decl_error, decl_module, decl_storage, ensure, traits::{WithdrawReason, Currency, ExistenceRequirement, Time}, weights::Weight};
-use frame_system::{ensure_root, ensure_signed};
 use codec::{Decode, Encode};
-use sp_io::hashing::{keccak_256};
-use sp_runtime::{DispatchError, traits::Bounded};
+use frame_support::{
+	decl_error, decl_module, decl_storage, ensure,
+	traits::{Currency, ExistenceRequirement, Time, WithdrawReason},
+	weights::Weight,
+};
+use frame_system::{ensure_root, ensure_signed};
+use sp_io::hashing::keccak_256;
+use sp_runtime::{traits::Bounded, DispatchError};
 use sp_std::vec::Vec;
 //use prml_support::MultiCurrencyAccounting;
 
 //cennzx
 use core::convert::TryFrom;
-use frame_support::{
-	decl_event, Parameter, StorageDoubleMap
-};
+use frame_support::{decl_event, Parameter, StorageDoubleMap};
 use prml_support::MultiCurrencyAccounting;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, Member, One, Saturating, Zero},
@@ -32,7 +34,7 @@ pub trait Trait: frame_system::Trait {
 	/// Timestamps
 	type Time: Time;
 	/// Weight of operation
-    type WeightInfo: WeightInfo;
+	type WeightInfo: WeightInfo;
 	/// Type for identifying assets
 	type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Into<u64>;
 	/// Something which can provide multi currency asset management
@@ -52,9 +54,9 @@ pub trait WeightInfo {
 
 #[derive(Encode, Decode, Default, Debug, Clone)]
 pub struct Transaction<Balance, Timestamp, AssetId> {
-	amount: Balance, // Funds
+	amount: Balance,             // Funds
 	last_transferred: Timestamp, // Time at which funds were last transferred
-	asset_id: AssetId, // Asset that was used in the transaction
+	asset_id: AssetId,           // Asset that was used in the transaction
 }
 
 decl_storage! {
@@ -70,7 +72,6 @@ decl_storage! {
 	}
 }
 
-
 decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// Invalid vendor recipient
@@ -81,6 +82,8 @@ decl_error! {
 		RemovedIncorrectFunds,
 		/// Invalid spending asset
 		AssetNotWhitelisted,
+		/// Transaction failed
+		TransactionFailed,
 	}
 }
 
@@ -146,9 +149,12 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-
 	// Add funds to an account
-	pub fn add_funds(account: T::AccountId, asset_id: T::AssetId, amount: BalanceOf<T>) -> Result<(), Error<T>> {
+	pub fn add_funds(account: T::AccountId, asset_id: T::AssetId, amount: BalanceOf<T>) -> DispatchResult {
+		ensure!(
+			<Assets<T>>::contains_key(asset_id) == true,
+			Error::<T>::AssetNotWhitelisted
+		);
 		let mut tx_set = <Transactions<T>>::get(&account);
 		tx_set.push(Transaction::<BalanceOf<T>, Timestamp<T>, T::AssetId> {
 			amount: amount,
@@ -157,15 +163,19 @@ impl<T: Trait> Module<T> {
 		});
 		tx_set.sort_by(|a, b| a.last_transferred.cmp(&b.last_transferred));
 		<Transactions<T>>::insert(account.clone(), tx_set);
-		T::MultiCurrency::deposit_into_existing(&account, Some(asset_id), amount);
+		T::MultiCurrency::deposit_into_existing(&account, Some(asset_id), amount)
+			.map_err(|_| Error::<T>::TransactionFailed)?;
 		Ok(())
-
 	}
 
 	// Removes funds from account
-	pub fn remove_funds(account: T::AccountId, asset_id: T::AssetId, amount: BalanceOf<T>) -> Result<(), Error<T>> {
+	pub fn remove_funds(account: T::AccountId, asset_id: T::AssetId, amount: BalanceOf<T>) -> DispatchResult {
 		// Fetch total unexpired funds to ensure funds can be removed
-		let unexpired_funds = Self::total_unexpired_funds(account.clone());
+		ensure!(
+			<Assets<T>>::contains_key(asset_id) == true,
+			Error::<T>::AssetNotWhitelisted
+		);
+		let unexpired_funds = Self::total_unexpired_funds(account.clone(), asset_id)?;
 		ensure!(unexpired_funds >= amount, Error::<T>::InsufficientUnexpiredFunds);
 
 		let mut current_removed = BalanceOf::<T>::from(0 as u32);
@@ -173,15 +183,17 @@ impl<T: Trait> Module<T> {
 		let now = T::Time::now();
 		for mut tx in tx_set.iter_mut() {
 			// Transaction has expired
-			if tx.last_transferred + <ExpirationDuration<T>>::get() < now { 
+			if tx.last_transferred + <ExpirationDuration<T>>::get() < now {
 				continue;
 			} else {
-				if (amount - current_removed) > tx.amount { // complete drain transaction
+				if (amount - current_removed) > tx.amount {
+					// Completely drain transaction
 					current_removed += tx.amount;
 					tx.amount = BalanceOf::<T>::from(0 as u32);
-				} else { // partial drain transaction (last)
+				} else {
+					// Partially drain transaction
 					let remaining = amount - current_removed;
-					tx.amount -= remaining; 
+					tx.amount -= remaining;
 					current_removed += remaining;
 					break;
 				}
@@ -190,30 +202,50 @@ impl<T: Trait> Module<T> {
 
 		ensure!(current_removed == amount, Error::<T>::RemovedIncorrectFunds);
 		<Transactions<T>>::insert(account.clone(), tx_set);
-		T::MultiCurrency::withdraw(&account, Some(asset_id), amount, WithdrawReason::Fee.into(), ExistenceRequirement::KeepAlive);
-		Ok(())	
-
+		T::MultiCurrency::withdraw(
+			&account,
+			Some(asset_id),
+			amount,
+			WithdrawReason::Fee.into(),
+			ExistenceRequirement::KeepAlive,
+		)
+		.map_err(|_| Error::<T>::TransactionFailed)?;
+		Ok(())
 	}
 
-	// Total funds expired and unexpired 
-	pub fn total_funds(account: T::AccountId) -> BalanceOf<T> {
-		let mut acc = <BalanceOf<T>>::from(0 as u32);
-		for tx in <Transactions<T>>::get(account) {
-				acc += tx.amount
-		}
-		acc
+	// Total funds expired and unexpired
+	pub fn total_funds(account: T::AccountId, asset_id: T::AssetId) -> Result<BalanceOf<T>, Error<T>> {
+		ensure!(
+			<Assets<T>>::contains_key(asset_id) == true,
+			Error::<T>::AssetNotWhitelisted
+		);
+		Ok(<Transactions<T>>::get(account)
+			.into_iter()
+			.fold(<BalanceOf<T>>::from(0u32), |acc, tx| {
+				if tx.asset_id == asset_id {
+					acc + tx.amount
+				} else {
+					acc
+				}
+			}))
 	}
 
 	// Total unexpired funds
-	pub fn total_unexpired_funds(account: T::AccountId) -> BalanceOf<T> {
-		let mut acc = <BalanceOf<T>>::from(0 as u32);
+	pub fn total_unexpired_funds(account: T::AccountId, asset_id: T::AssetId) -> Result<BalanceOf<T>, Error<T>> {
+		ensure!(
+			<Assets<T>>::contains_key(asset_id) == true,
+			Error::<T>::AssetNotWhitelisted
+		);
 		let now = T::Time::now();
-		for tx in <Transactions<T>>::get(account) {
-			if tx.last_transferred + <ExpirationDuration<T>>::get() > now {
-				acc += tx.amount
-			}
-		}
-		acc
+		Ok(<Transactions<T>>::get(account)
+			.into_iter()
+			.fold(<BalanceOf<T>>::from(0u32), |acc, tx| {
+				if (tx.last_transferred + <ExpirationDuration<T>>::get() > now) && (tx.asset_id == asset_id) {
+					acc + tx.amount
+				} else {
+					acc
+				}
+			}))
 	}
 }
 
@@ -224,8 +256,8 @@ mod test {
 	use frame_support::{impl_outer_origin, parameter_types};
 	use pallet_balances::Module as BalanceModule;
 	use pallet_timestamp::Module as TimeModule;
-	use sp_core::{crypto::AccountId32, ecdsa, ed25519, Pair, sr25519};
-	use sp_runtime::{MultiSigner, traits::IdentifyAccount};
+	use sp_core::{crypto::AccountId32, ecdsa, ed25519, sr25519, Pair};
+	use sp_runtime::{traits::IdentifyAccount, MultiSigner};
 	// use cennznet_primitives::types::{Balance};
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -323,41 +355,38 @@ mod test {
 	}
 
 	fn execute<F: Fn()>(execute: F) {
-		sp_io::TestExternalities::from(
-			frame_system::GenesisConfig::default()
-				.build_storage::<Test>()
-				.unwrap()
-		).execute_with(execute)
+		sp_io::TestExternalities::from(frame_system::GenesisConfig::default().build_storage::<Test>().unwrap())
+			.execute_with(execute)
 	}
 
 	#[test]
 	pub fn test_multicurrency() {
 		let a = alice();
 		let b = bob();
-		let core_asset_id: u32= 1337;
-		execute(|| { // Add with root
-			// Create currency
-			<Test as Trait>::MultiCurrency::deposit_creating(&a, Some(core_asset_id), 1000u32.into());
-			assert_eq!(<Test as Trait>::MultiCurrency::free_balance(core_asset_id, &a), 1000u32.into());
+		let core_asset_id: u32 = 1;
+
+		execute(|| {
+			// Set expiration duration
+			SmartMoney::set_expiration(Origin::root(), 500);
 
 			// Whitelist Asset
 			SmartMoney::add_asset(Origin::root(), core_asset_id);
+
 			// Add funds
 			SmartMoney::add_funds(a.clone(), core_asset_id, <BalanceOf<Test>>::from(1000u32));
 
 			// Add a vendor
-			SmartMoney::add_vendor(Origin::root(), a.clone())
-				.expect("Could not add vendor using privileged root");
-			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), true);
+			SmartMoney::add_vendor(Origin::root(), b.clone()).expect("Could not add vendor using privileged root");
+			assert_eq!(<Vendors<Test>>::contains_key(b.clone()), true);
 
 			// Transfer custom currency from the vendor
-			SmartMoney::transfer(Origin::signed(a.clone()), b.clone(), core_asset_id, <BalanceOf<Test>>::from(100 as u32));
-			//assert_eq!(SmartMoney::total_funds(a.clone()),<BalanceOf<Test>>::from(900u32));
-
-
-
+			SmartMoney::transfer(
+				Origin::signed(a.clone()),
+				b.clone(),
+				core_asset_id,
+				<BalanceOf<Test>>::from(100 as u32),
+			);
+			assert_eq!(SmartMoney::total_funds(a.clone(), core_asset_id).unwrap(), <BalanceOf<Test>>::from(900u32));
 		})
 	}
-
-
 }
