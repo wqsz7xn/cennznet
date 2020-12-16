@@ -16,7 +16,10 @@ impl crate::smart_money::WeightInfo for () {
 	fn set_expiration() -> Weight {
 		0
 	}
-	fn set_asset_id() -> Weight {
+	fn add_asset() -> Weight {
+		0
+	}
+	fn remove_asset() -> Weight {
 		0
 	}
 }
