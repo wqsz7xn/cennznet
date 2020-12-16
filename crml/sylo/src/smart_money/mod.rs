@@ -104,7 +104,7 @@ decl_module! {
 			Self::add_funds(to.clone(), amount)?;
 
 			// Chain transaction
-			T::MultiCurrency::transfer(&from, &to, Some(<AssetId<T>>::get()), amount,ExistenceRequirement::KeepAlive)?;
+			T::MultiCurrency::transfer(&from, &to, Some(<AssetId<T>>::get()), amount,ExistenceRequirement::KeepAlive);
 		}
 
 		// Mint funds to account using root
@@ -211,6 +211,7 @@ mod test {
 	use pallet_timestamp::Module as TimeModule;
 	use sp_core::{crypto::AccountId32, ecdsa, ed25519, Pair, sr25519};
 	use sp_runtime::{MultiSigner, traits::IdentifyAccount};
+	// use cennznet_primitives::types::{Balance};
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
@@ -253,11 +254,18 @@ mod test {
 		pub enum Origin for Test where system = frame_system {}
 	}
 
+	impl prml_generic_asset::Trait for Test {
+		type AssetId = u32;
+		type Balance = u128;
+		type WeightInfo = ();
+		type Event = ();
+	}
+
 	impl Trait for Test {
-		type Currency = MultiCurrencyAccounting<Test>;
-		//type MultiCurrency = BalanceModule<Test>;
 		type WeightInfo = ();
 		type Time = TimeModule<Test>;
+		type AssetId = u32;
+		type MultiCurrency = prml_generic_asset::Module<Self>;
 	}
 
 	parameter_types! {
@@ -308,203 +316,33 @@ mod test {
 	}
 
 	#[test]
-	pub fn test_add_vendor() {
+	pub fn test_multicurrency() {
 		let a = alice();
 		let b = bob();
+		let core_asset_id: u32= 1337;
 		execute(|| { // Add with root
-			SmartMoney::add_vendor(Origin::root(), a.clone())
-				.expect("Could not add vendor using privileged root");
-			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), true);
+			// Create currency
+			<Test as Trait>::MultiCurrency::deposit_creating(&a, Some(core_asset_id), 1000u32.into());
+			assert_eq!(<Test as Trait>::MultiCurrency::free_balance(core_asset_id, &a), 1000u32.into());
 
-			// Attempt to add without root
-			SmartMoney::add_vendor(Origin::signed(b.clone()),  b.clone())
-				.expect_err("Added vendor without priviledged root");
-			assert_eq!(<Vendors<Test>>::contains_key(b.clone()), false);
-		})
-	}
-
-	#[test]
-	pub fn test_remove_vendor() {
-		let a = alice();
-		execute(|| {
-			// Add vendor 
-			SmartMoney::add_vendor(Origin::root(), a.clone())
-				.expect("Could not add vendor using privileged root");
-			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), true);
-
-			// Attempt to remove without root
-			SmartMoney::remove_vendor(Origin::signed(a.clone()), a.clone())
-				.expect_err("Removed vendor without priviledged root");
-			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), true);
-
-			// Remove with root
-			SmartMoney::remove_vendor(Origin::root(), a.clone())
-				.expect("Could not remove vendor using privileged root");
-			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), false);
-		})
-	}
-
-	#[test]
-	pub fn test_add_and_remove() {
-		let a = alice();
-		execute(|| {
-
-			let now = Time::now();
-			<ExpirationDuration<Test>>::put(5);
-			Time::set_timestamp(0);
-			// Expired funds
-			SmartMoney::add_funds(a.clone(), 1);
-			SmartMoney::add_funds(a.clone(), 2);
-			SmartMoney::add_funds(a.clone(), 3);
-			// Unexpired funds
-			Time::set_timestamp(10);
-			SmartMoney::add_funds(a.clone(), 4);
-			SmartMoney::add_funds(a.clone(), 5);
-			SmartMoney::add_funds(a.clone(), 6);
-
-
-			SmartMoney::remove_funds(a.clone(), 4);
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(11 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(17 as u32));
-
-			//Attempt to remove more unexpired than account has
-			SmartMoney::remove_funds(a.clone(), 12).expect_err("Removed more funds than account has");
-
-			// Remove all funds
-			SmartMoney::remove_funds(a.clone(), 11);
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(0 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(6 as u32));
-
-		})
-	}
-
-	#[test]
-	pub fn test_total_unexpired_and_expired() {
-		let a = alice();
-		execute(|| {
-
-			let now = Time::now();
-			<ExpirationDuration<Test>>::put(5);
-			Time::set_timestamp(0);
-			// Expired funds
-			SmartMoney::add_funds(a.clone(), 1);
-			SmartMoney::add_funds(a.clone(), 2);
-			SmartMoney::add_funds(a.clone(), 3);
-			// Unexpired funds
-			Time::set_timestamp(10);
-			SmartMoney::add_funds(a.clone(), 4);
-			SmartMoney::add_funds(a.clone(), 5);
-			SmartMoney::add_funds(a.clone(), 6);
-
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(15 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(21 as u32));
-		})
-	}
-
-	#[test]
-	pub fn test_transfer_whitelisted() {
-		let a = alice();
-		let b = bob();
-		execute(|| {
+			// Add funds
+			SmartMoney::add_funds(a.clone(), <BalanceOf<Test>>::from(1000u32));
+			// Set asset id
+			<AssetId<Test>>::put(core_asset_id);
 
 			// Add a vendor
-			SmartMoney::add_vendor(Origin::root(), b.clone())
+			SmartMoney::add_vendor(Origin::root(), a.clone())
 				.expect("Could not add vendor using privileged root");
-			assert_eq!(<Vendors<Test>>::contains_key(b.clone()), true);
+			assert_eq!(<Vendors<Test>>::contains_key(a.clone()), true);
 
-			let now = Time::now();
-			<ExpirationDuration<Test>>::put(5);
-			Time::set_timestamp(0);
-			// Expired funds Alice
-			SmartMoney::add_funds(a.clone(), 1);
-			SmartMoney::add_funds(a.clone(), 2);
-			SmartMoney::add_funds(a.clone(), 3);
-			// Expired funds Bob 
-			SmartMoney::add_funds(b.clone(), 1);
-			SmartMoney::add_funds(b.clone(), 2);
-			SmartMoney::add_funds(b.clone(), 3);
+			// Transfer custom currency from the vendor
+			SmartMoney::transfer(Origin::signed(a.clone()), b.clone(), <BalanceOf<Test>>::from(100 as u32));
+			//assert_eq!(SmartMoney::total_funds(a.clone()),<BalanceOf<Test>>::from(900u32));
 
-			Time::set_timestamp(10);
-			// Unexpired funds Alice
-			SmartMoney::add_funds(a.clone(), 4);
-			SmartMoney::add_funds(a.clone(), 5);
-			SmartMoney::add_funds(a.clone(), 6);
-			// Unexpired funds Bob
-			SmartMoney::add_funds(b.clone(), 4);
-			SmartMoney::add_funds(b.clone(), 5);
-			SmartMoney::add_funds(b.clone(), 6);
 
-			// Attempt to transfer more than avaliable
-			SmartMoney::transfer(Origin::signed(a.clone()), b.clone(), 20)
-				.expect_err("Transfered a balance greater than what was avaliable");
 
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(15 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(21 as u32));
-			assert_eq!(SmartMoney::total_unexpired_funds(b.clone()), BalanceOf::<Test>::from(15 as u32));
-			assert_eq!(SmartMoney::total_funds(b.clone()), BalanceOf::<Test>::from(21 as u32));
-
-			// Normal transaction with registered vendor
-			SmartMoney::transfer(Origin::signed(a.clone()), b.clone(), 5);
-
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(10 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(16 as u32));
-			assert_eq!(SmartMoney::total_unexpired_funds(b.clone()), BalanceOf::<Test>::from(20 as u32));
-			assert_eq!(SmartMoney::total_funds(b.clone()), BalanceOf::<Test>::from(26 as u32));
 		})
 	}
 
-	#[test]
-	pub fn test_transfer_not_whitelisted() {
-		let a = alice();
-		let b = bob();
-		execute(|| {
-
-			let now = Time::now();
-			<ExpirationDuration<Test>>::put(5);
-			Time::set_timestamp(0);
-			// Expired funds Alice
-			SmartMoney::add_funds(a.clone(), 1);
-			SmartMoney::add_funds(a.clone(), 2);
-			SmartMoney::add_funds(a.clone(), 3);
-			// Expired funds Bob 
-			SmartMoney::add_funds(b.clone(), 1);
-			SmartMoney::add_funds(b.clone(), 2);
-			SmartMoney::add_funds(b.clone(), 3);
-
-			Time::set_timestamp(10);
-			// Unexpired funds Alice
-			SmartMoney::add_funds(a.clone(), 4);
-			SmartMoney::add_funds(a.clone(), 5);
-			SmartMoney::add_funds(a.clone(), 6);
-			// Unexpired funds Bob
-			SmartMoney::add_funds(b.clone(), 4);
-			SmartMoney::add_funds(b.clone(), 5);
-			SmartMoney::add_funds(b.clone(), 6);
-
-			// Attempt to transfer to a non whitelisted vendor
-			SmartMoney::transfer(Origin::signed(a.clone()), b.clone(), 5)
-				.expect_err("Transfered to a non whitelisted vendor");
-
-			assert_eq!(SmartMoney::total_unexpired_funds(a.clone()), BalanceOf::<Test>::from(15 as u32));
-			assert_eq!(SmartMoney::total_funds(a.clone()), BalanceOf::<Test>::from(21 as u32));
-			assert_eq!(SmartMoney::total_unexpired_funds(b.clone()), BalanceOf::<Test>::from(15 as u32));
-			assert_eq!(SmartMoney::total_funds(b.clone()), BalanceOf::<Test>::from(21 as u32));
-		})
-	}
-	
-	#[test]
-	pub fn test_mint() {
-		let a = alice();
-		execute(|| {
-			Time::set_timestamp(0);
-			Balance::make_free_balance_be(&a, 1);
-			println!("Balance of before: {:?}", Balance::free_balance(a.clone()));
-			SmartMoney::mint(Origin::root(), a.clone(), 500);
-			Time::set_timestamp(10);
-			println!("Balance of after: {:?}", Balance::free_balance(a.clone()));
-			assert_eq!(Balance::free_balance(a.clone()), 501);
-			assert_eq!(SmartMoney::total_funds(a.clone()), 500);
-		})
-	}
 
 }
