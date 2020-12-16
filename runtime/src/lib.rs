@@ -503,9 +503,11 @@ impl crml_sylo::vault::Trait for Runtime {
 }
 
 impl crml_sylo::smart_money::Trait for Runtime {
+	type AssetId = AssetId;
+	type MultiCurrency = GenericAsset;
 	type WeightInfo = ();
 	type Time = Timestamp;
-	type Currency = SpendingAssetCurrency<Self>;
+	//type Currency = SpendingAssetCurrency<Self>;
 }
 
 impl crml_sylo::groups::Trait for Runtime {

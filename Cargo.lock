@@ -1145,6 +1145,8 @@ dependencies = [
  "pallet-balances",
  "pallet-timestamp",
  "parity-scale-codec",
+ "prml-generic-asset",
+ "prml-support",
  "serde",
  "sp-core",
  "sp-io",
