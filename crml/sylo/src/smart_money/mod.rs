@@ -64,7 +64,7 @@ decl_storage! {
 		// Whitelisted AssetIds
 		pub Assets get(fn assets): map hasher(blake2_128_concat) T::AssetId => ();
 		// Delay period during which funds are spendable, after which funds are softlocked
-		pub ExpirationDuration get(fn expirationduration): Timestamp<T>;
+		pub ExpirationDuration get(fn expirationduration): map hasher(blake2_128_concat) T::AssetId => Timestamp<T>;
 		// Whitelisted vendors
 		pub Vendors get(fn vendors): map hasher(blake2_128_concat) T::AccountId => ();
 		// Tracking account transactions
@@ -141,9 +141,9 @@ decl_module! {
 
 		// Set expiration period at which after all funds are locked
 		#[weight = T::WeightInfo::set_expiration()]
-		fn set_expiration(origin, expiration_duration: Timestamp<T>) {
+		fn set_expiration(origin, asset_id: T::AssetId, expiration_duration: Timestamp<T>) {
 			ensure_root(origin)?;
-			<ExpirationDuration<T>>::put(expiration_duration);
+			<ExpirationDuration<T>>::insert(asset_id, expiration_duration);
 		}
 	}
 }
@@ -183,7 +183,7 @@ impl<T: Trait> Module<T> {
 		let now = T::Time::now();
 		for mut tx in tx_set.iter_mut() {
 			// Transaction has expired
-			if tx.last_transferred + <ExpirationDuration<T>>::get() < now {
+			if tx.last_transferred + <ExpirationDuration<T>>::get(asset_id) < now {
 				continue;
 			} else {
 				if (amount - current_removed) > tx.amount {
@@ -240,7 +240,7 @@ impl<T: Trait> Module<T> {
 		Ok(<Transactions<T>>::get(account)
 			.into_iter()
 			.fold(<BalanceOf<T>>::from(0u32), |acc, tx| {
-				if (tx.last_transferred + <ExpirationDuration<T>>::get() > now) && (tx.asset_id == asset_id) {
+				if (tx.last_transferred + <ExpirationDuration<T>>::get(asset_id) > now) && (tx.asset_id == asset_id) {
 					acc + tx.amount
 				} else {
 					acc
@@ -366,11 +366,11 @@ mod test {
 		let core_asset_id: u32 = 1;
 
 		execute(|| {
-			// Set expiration duration
-			SmartMoney::set_expiration(Origin::root(), 500);
-
 			// Whitelist Asset
 			SmartMoney::add_asset(Origin::root(), core_asset_id);
+
+			// Set expiration for asset
+			SmartMoney::set_expiration(Origin::root(), core_asset_id, 500);
 
 			// Add funds
 			SmartMoney::add_funds(a.clone(), core_asset_id, <BalanceOf<Test>>::from(1000u32));
