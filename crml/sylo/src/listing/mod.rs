@@ -1,4 +1,6 @@
-use frame_support::{decl_error, decl_module, decl_storage, dispatch::Vec, dispatch::DispatchResult, ensure, weights::Weight};
+use frame_support::{
+	decl_error, decl_module, decl_storage, dispatch::DispatchResult, dispatch::Vec, ensure, weights::Weight,
+};
 use frame_system::ensure_signed;
 
 // Listing
@@ -16,34 +18,33 @@ decl_module! {
 			Self::put(key, value)
 		}
 
-        #[weight = 0]
+		#[weight = 0]
 		fn get_value(origin, key: T::AccountId) {
 			ensure_signed(origin)?;
 			Self::get(key)
 		}
 
-        #[weight = 0]
+		#[weight = 0]
 		fn delete_keyvalue(origin, key: T:: AccountId) {
-		    Self::delete(key)
+			Self::delete(key)
 		}
 	}
 }
 
 pub trait Trait: frame_system::Trait {
-    //type WeightInfo: WeightInfo;
+	//type WeightInfo: WeightInfo;
 }
 
 impl<T: Trait> Module<T> {
-    pub fn put(key: T::AccountId, value: Vec<u8>) {
-        <Listing<T>>::insert(key, value);
-    }
+	pub fn put(key: T::AccountId, value: Vec<u8>) {
+		<Listing<T>>::insert(key, value);
+	}
 
-    pub fn get(key : T::AccountId) {
-        <Listing<T>>::get(key);
-    }
+	pub fn get(key: T::AccountId) {
+		<Listing<T>>::get(key);
+	}
 
-    pub fn delete(key: T::AccountId) {
-        <Listing<T>>::take(key);
-    }
+	pub fn delete(key: T::AccountId) {
+		<Listing<T>>::take(key);
+	}
 }
-
