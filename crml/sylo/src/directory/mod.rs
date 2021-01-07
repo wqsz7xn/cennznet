@@ -409,11 +409,8 @@ impl<T: Trait> Module<T> {
 	}
 
 	// Scan the stake directory, select a node
-	fn scan(point: BalanceOf<T>) -> Result<T::AccountId, ()> {
-		if Root::get() == EMPTY_HASH {
-			return Err(());
-		}
-
+	pub fn scan(point: BalanceOf<T>) -> Result<T::AccountId, Error<T>>{
+		ensure!(Root::get() != EMPTY_HASH, Error::<T>::NoStakes);
 		let mut expected_val = (point / BalanceOf::<T>::max_value()) * Self::get_total_stake();
 		let mut current = Root::get();
 
@@ -1110,10 +1107,10 @@ mod test {
 
 			assert_eq!(Directory::get_total_stake(), 2);
 
-			let selected_1 = Directory::scan(Origin::signed(a.clone()), BalanceOf::<Test>::max_value());
+			let selected_1 = Directory::scan(BalanceOf::<Test>::max_value());
 			assert_eq!(selected_1, Some(a.clone()));
 
-			let selected_0 = Directory::scan(Origin::signed(a.clone()), (0 as u32).into());
+			let selected_0 = Directory::scan((0 as u32).into());
 			assert_eq!(selected_0, Some(b.clone()));
 		})
 	}

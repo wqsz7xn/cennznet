@@ -76,6 +76,7 @@ pub use sp_runtime::{ModuleId, Perbill, Percent, Permill, Perquintill};
 use cennznet_primitives::types::{AccountId, AssetId, Balance, BlockNumber, Hash, Header, Index, Moment, Signature};
 pub use crml_cennzx::{ExchangeAddressGenerator, FeeRate, PerMillion, PerThousand};
 use crml_cennzx_rpc_runtime_api::CennzxResult;
+use crml_sylo_directory_rpc_runtime_api::SyloDirectoryResult;
 pub use crml_sylo::device as sylo_device;
 pub use crml_sylo::e2ee as sylo_e2ee;
 pub use crml_sylo::groups as sylo_groups;
@@ -885,8 +886,12 @@ impl_runtime_apis! {
 	}
 
 	impl crml_sylo_directory_rpc_runtime_api::SyloDirectoryApi<Block, Balance, AccountId> for Runtime {
-		fn scan(point: Balance) -> Result<AccountId, ()> {
-			SyloDirectory::scan(point)
+		fn scan(point: Balance) -> SyloDirectoryResult<AccountId> {
+			let result = SyloDirectory::scan(point);
+			match result {
+				Ok(acc) => SyloDirectoryResult::Success(acc),
+				Err(_) => SyloDirectoryResult::Error,
+			}
 		}
 	}
 
