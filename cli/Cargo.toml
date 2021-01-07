@@ -61,6 +61,7 @@ cennznet-runtime = { path = "../runtime" }
 crml-cennzx-rpc = { path = "../crml/cennzx/rpc" }
 prml-generic-asset-rpc = { rev = "2.0.2", git = "https://github.com/plugblockchain/plug-blockchain" }
 prml-generic-asset = { rev = "2.0.2", git = "https://github.com/plugblockchain/plug-blockchain" }
+crml-sylo-directory-rpc = { path = "../crml/sylo/src/directory/rpc" }
 
 pallet-im-online = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2" }
 

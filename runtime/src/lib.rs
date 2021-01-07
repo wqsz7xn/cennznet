@@ -884,6 +884,12 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl crml_sylo_directory_rpc_runtime_api::SyloDirectoryApi<Block, Balance, AccountId> for Runtime {
+		fn scan(point: Balance) -> Result<AccountId, ()> {
+			SyloDirectory::scan(point)
+		}
+	}
+
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(

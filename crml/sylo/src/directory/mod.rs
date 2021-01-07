@@ -19,7 +19,6 @@ pub trait WeightInfo {
 	fn unlock_stake() -> Weight;
 	fn unstake() -> Weight;
 	fn lock_stake() -> Weight;
-	fn scan() -> Weight;
 }
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
@@ -273,33 +272,6 @@ decl_module! {
 			Self::update_stake_amount(key, amount, false);
 		}
 
-		// Select a stake weighted node
-		// Should be called with a random point value
-		#[weight = T::WeightInfo::scan()]
-		fn scan(origin, point: BalanceOf<T>) -> DispatchResult {
-			ensure!(Root::get() != EMPTY_HASH, Error::<T>::NoStakes);
-
-			let mut expected_val = (point / BalanceOf::<T>::max_value()) * Self::get_total_stake();
-			let mut current = Root::get();
-
-			loop {
-				let stake = <Stakes<T>>::get(current);
-				if expected_val < stake.left_amount {
-					current = stake.left;
-					continue;
-				}
-
-				expected_val -= stake.left_amount;
-
-				if expected_val <= stake.amount {
-					// return Ok(stake.stakee);
-					return Ok(());
-				}
-
-				expected_val -= stake.amount;
-				current = stake.right;
-			}
-		}
 	}
 }
 
@@ -434,6 +406,33 @@ impl<T: Trait> Module<T> {
 			<Unlockings<T>>::insert(unlock_key, unlock);
 		}
 		Ok(())
+	}
+
+	// Scan the stake directory, select a node
+	fn scan(point: BalanceOf<T>) -> Result<T::AccountId, ()> {
+		if Root::get() == EMPTY_HASH {
+			return Err(());
+		}
+
+		let mut expected_val = (point / BalanceOf::<T>::max_value()) * Self::get_total_stake();
+		let mut current = Root::get();
+
+		loop {
+			let stake = <Stakes<T>>::get(current);
+			if expected_val < stake.left_amount {
+				current = stake.left;
+				continue;
+			}
+
+			expected_val -= stake.left_amount;
+
+			if expected_val <= stake.amount {
+				return Ok(stake.stakee);
+			}
+
+			expected_val -= stake.amount;
+			current = stake.right;
+		}
 	}
 
 	// Retrieve the total stake weight of the directory

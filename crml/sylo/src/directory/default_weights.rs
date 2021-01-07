@@ -13,7 +13,4 @@ impl crate::directory::WeightInfo for () {
 	fn lock_stake() -> Weight {
 		0
 	}
-	fn scan() -> Weight {
-		0
-	}
 }

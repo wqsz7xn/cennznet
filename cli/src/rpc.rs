@@ -111,6 +111,7 @@ where
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
 	use crml_cennzx_rpc::{Cennzx, CennzxApi};
+	use crml_sylo_directory_rpc::{SyloDirectory, SyloDirectoryApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 	use prml_generic_asset_rpc::{GenericAsset, GenericAssetApi};
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
@@ -164,6 +165,7 @@ where
 		client.clone(),
 	)));
 	io.extend_with(CennzxApi::to_delegate(Cennzx::new(client.clone())));
+	io.extend_with(SyloDirectoryApi::to_delegate(SyloDirectory::new(client.clone())));
 	io.extend_with(GenericAssetApi::to_delegate(GenericAsset::new(client)));
 
 	io
