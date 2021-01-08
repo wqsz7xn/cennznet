@@ -4,19 +4,16 @@ use frame_support::{
 	decl_error, decl_module, decl_storage,
 	dispatch::DispatchError,
 	ensure,
-	traits::WithdrawReason,
-	traits::{Currency, ExistenceRequirement, Time},
+	traits::{Currency, ExistenceRequirement, Get, Time, WithdrawReason},
 	weights::Weight,
 };
-use frame_system::ensure_signed;
+use frame_system::{ensure_root, ensure_signed};
 use sp_core::U256;
 use sp_io::hashing::keccak_256;
 use sp_runtime::{traits::Verify, AccountId32, MultiSignature};
 use sp_std::convert::TryFrom;
 
 mod default_weights;
-
-const UNLOCK_DURATION: u32 = 7 * 24 * 60 * 60 * 1000; // A week
 
 pub trait WeightInfo {
 	fn deposit_escrow() -> Weight;
@@ -26,6 +23,7 @@ pub trait WeightInfo {
 	fn withdraw() -> Weight;
 	fn withdraw_to() -> Weight;
 	fn redeem() -> Weight;
+	fn set_unlock_duration() -> Weight;
 }
 
 pub trait Trait: frame_system::Trait {
@@ -103,6 +101,9 @@ decl_storage! {
 
 		/// Mapping of ticket hashes, used to check if a ticket has been redeemed
 		pub UsedTickets get(fn used_tickets): map hasher(blake2_128_concat) [u8; 32] => bool;
+
+		/// The unlock duration that a user is required to wait after unlocking their deposit til they can withdraw them
+		pub UnlockDuration get(fn unlock_duration): <<T as Trait>::Time as Time>::Moment = (7 * 24 * 60 * 60 * 1_000u32).into();
 	}
 }
 
@@ -137,7 +138,7 @@ decl_module! {
 			ensure!(deposit.escrow > (0 as u32).into() || deposit.penalty > (0 as u32).into(), Error::<T>::NothingToWithdraw);
 			ensure!(deposit.unlock_at == (0 as u32).into(), Error::<T>::UnlockAlreadyInProgress);
 
-			deposit.unlock_at = T::Time::now() + UNLOCK_DURATION.into();
+			deposit.unlock_at = T::Time::now() + <UnlockDuration<T>>::get();
 			<Deposits<T>>::insert(&account, deposit)
 		}
 
@@ -165,7 +166,7 @@ decl_module! {
 		}
 
 		#[weight = T::WeightInfo::redeem()]
-		pub fn redeem(origin, ticket: TicketOf<T>, receiver_rand: U256, sig: MultiSignature) {
+		pub fn redeem(origin, ticket: Ticket<<T as frame_system::Trait>::AccountId, BalanceOf<T>, Timestamp<T>>, receiver_rand: U256, sig: MultiSignature) {
 			let _ = ensure_signed(origin)?;
 			let hash = get_ticket_hash::<T>(&ticket);
 			ensure_valid_winning_ticket::<T>(&ticket, &hash, receiver_rand, sig)?;
@@ -186,6 +187,12 @@ decl_module! {
 
 			T::Currency::deposit_into_existing(&ticket.receiver, ticket.face_value)?;
 			<Deposits<T>>::insert(&ticket.sender, deposit);
+		}
+
+		#[weight = T::WeightInfo::set_unlock_duration()]
+		pub fn set_unlock_duration(origin, unlock_duration: <<T as Trait>::Time as Time>::Moment) {
+			ensure_root(origin)?;
+			<UnlockDuration<T>>::put(unlock_duration)
 		}
 	}
 }
@@ -429,14 +436,14 @@ mod test {
 
 			// We now wish to unlock these deposits
 			Ticketing::unlock_deposits(Origin::signed(alice.clone())).expect("Failed to unlock the deposit");
-			// The unlock period is now set to UNLOCK_DURATION
+			// The unlock period is now set to Now + UnlockDuration
 			assert_eq!(
 				<Deposits<Test>>::get(alice.clone()).unlock_at - Time::now(),
-				<Timestamp<Test>>::from(UNLOCK_DURATION)
+				<UnlockDuration<Test>>::get()
 			);
 
 			// Move 1,000 after the unlock duration
-			Time::set_timestamp((1_000 + UNLOCK_DURATION + 1_000).into());
+			Time::set_timestamp((1_000 + <UnlockDuration<Test>>::get() + 1_000).into());
 
 			Ticketing::withdraw(Origin::signed(alice.clone())).expect("Failed to withdraw funds from deposit");
 

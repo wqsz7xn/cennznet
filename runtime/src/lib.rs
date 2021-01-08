@@ -517,6 +517,7 @@ impl crml_sylo::directory::Trait for Runtime {
 impl crml_sylo::groups::Trait for Runtime {
 	type WeightInfo = ();
 }
+
 impl crml_sylo::ticketing::Trait for Runtime {
 	type Currency = SpendingAssetCurrency<Self>;
 	type WeightInfo = ();

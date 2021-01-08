@@ -22,4 +22,7 @@ impl crate::ticketing::WeightInfo for () {
 	fn redeem() -> Weight {
 		0
 	}
+	fn set_unlock_duration() -> Weight {
+		0
+	}
 }
