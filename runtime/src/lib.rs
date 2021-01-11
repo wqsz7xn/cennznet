@@ -505,7 +505,7 @@ impl crml_sylo::vault::Trait for Runtime {
 }
 
 impl crml_sylo::listing::Trait for Runtime {
-	// type WeightInfo = ();
+	type WeightInfo = ();
 }
 
 impl crml_sylo::directory::Trait for Runtime {
