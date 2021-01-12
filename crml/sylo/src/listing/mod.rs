@@ -25,7 +25,7 @@ pub trait Trait: frame_system::Trait {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = frame_system {
 		#[weight = T::WeightInfo::set_listing()]
-		fn set_listing(origin, key: T::AccountId, multiaddr: MultiAddress) {
+		fn set_listing(origin, key: T::AccountId, multiaddr: Vec<u8>) {
 			ensure_signed(origin)?;
 			<Listings<T>>::insert(key, multiaddr);
 		}
