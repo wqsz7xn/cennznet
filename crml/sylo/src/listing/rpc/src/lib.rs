@@ -20,14 +20,14 @@ pub trait SyloListingApi<AccountId> {
 	fn get_listing(&self, key: AccountId) -> Result<MultiAddress>;
 }
 
-/// An implementation of Sylo directory specific RPC methods.
+/// An implementation of Sylo listing specific RPC methods.
 pub struct SyloListing<C, T> {
 	client: Arc<C>,
 	_marker: std::marker::PhantomData<T>,
 }
 
 impl<C, T> SyloListing<C, T> {
-	/// Create new Sylo directory client
+	/// Create new Sylo listing client
 	pub fn new(client: Arc<C>) -> Self {
 		SyloListing {
 			client,
@@ -64,7 +64,7 @@ where
 
 		let result = api.get_listing(&at, key).map_err(|e| RpcError {
 			code: ErrorCode::ServerError(Error::Runtime.into()),
-			message: "Unable to query scan.".into(),
+			message: "Unable to query listing.".into(),
 			data: Some(format!("{:?}", e).into()),
 		})?;
 		match result {

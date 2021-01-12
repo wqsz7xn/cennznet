@@ -5,7 +5,7 @@ use sp_arithmetic::traits::BaseArithmetic;
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::Vec;
 
-/// A result of querying the Sylo directory
+/// A result of querying the Sylo listing
 #[derive(Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum SyloListingResult {
 	/// The query returned successfully.
@@ -15,11 +15,11 @@ pub enum SyloListingResult {
 }
 
 sp_api::decl_runtime_apis! {
-	/// The RPC API to interact with Sylo stake tree
+	/// The RPC API to interact with Sylo listing module
 	pub trait SyloListingApi<AccountId> where
 		AccountId: Codec,
 	{
-		/// Scan the stake directory and select a weighted node
+		/// Fetch the Listing asociated with the key
 		fn get_listing(key: AccountId) -> SyloListingResult;
 	}
 }
