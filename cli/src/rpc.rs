@@ -104,6 +104,7 @@ where
 	C::Api: BlockBuilder<Block>,
 	C::Api: crml_cennzx_rpc::CennzxRuntimeApi<Block, AssetId, Balance, AccountId>,
 	C::Api: crml_sylo_directory_rpc::SyloDirectoryRuntimeApi<Block, Balance, AccountId>,
+	C::Api: crml_sylo_listing_rpc::SyloListingRuntimeApi<Block, AccountId>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: prml_generic_asset_rpc::AssetMetaApi<Block, AssetId>,
 	P: TransactionPool + 'static,
@@ -113,6 +114,7 @@ where
 {
 	use crml_cennzx_rpc::{Cennzx, CennzxApi};
 	use crml_sylo_directory_rpc::{SyloDirectory, SyloDirectoryApi};
+	use crml_sylo_listing_rpc::{SyloListing, SyloListingApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 	use prml_generic_asset_rpc::{GenericAsset, GenericAssetApi};
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
@@ -167,6 +169,7 @@ where
 	)));
 	io.extend_with(CennzxApi::to_delegate(Cennzx::new(client.clone())));
 	io.extend_with(SyloDirectoryApi::to_delegate(SyloDirectory::new(client.clone())));
+	io.extend_with(SyloListingApi::to_delegate(SyloListing::new(client.clone())));
 	io.extend_with(GenericAssetApi::to_delegate(GenericAsset::new(client)));
 
 	io

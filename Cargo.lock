@@ -659,6 +659,7 @@ dependencies = [
  "cennznet-runtime",
  "crml-cennzx-rpc",
  "crml-sylo-directory-rpc",
+ "crml-sylo-listing-rpc",
  "crml-transaction-payment",
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -732,6 +733,7 @@ dependencies = [
  "crml-staking",
  "crml-sylo",
  "crml-sylo-directory-rpc-runtime-api",
+ "crml-sylo-listing-rpc-runtime-api",
  "crml-transaction-payment",
  "frame-benchmarking",
  "frame-executive",
@@ -1176,6 +1178,39 @@ dependencies = [
 
 [[package]]
 name = "crml-sylo-directory-rpc-runtime-api"
+version = "2.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "serde_json",
+ "sp-api",
+ "sp-arithmetic",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "crml-sylo-listing-rpc"
+version = "2.0.0"
+dependencies = [
+ "crml-sylo-listing-rpc-runtime-api",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-core",
+ "sp-io",
+ "sp-rpc",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "crml-sylo-listing-rpc-runtime-api"
 version = "2.0.0"
 dependencies = [
  "parity-scale-codec",

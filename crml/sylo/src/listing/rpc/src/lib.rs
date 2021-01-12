@@ -7,26 +7,27 @@ use sp_api::ProvideRuntimeApi;
 use sp_arithmetic::traits::{BaseArithmetic, SaturatedConversion};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+pub use crml_sylo_listing_rpc_runtime_api::{self as runtime_api, SyloListingApi as SyloListingRuntimeApi, SyloListingResult};
 
-pub use crml_sylo_directory_rpc_runtime_api::{self as runtime_api, SyloDirectoryApi as SyloDirectoryRuntimeApi, SyloDirectoryResult};
+type MultiAddress = sp_std::prelude::Vec<u8>;
 
 /// Contracts RPC methods.
 #[rpc]
-pub trait SyloDirectoryApi<Balance, AccountId> {
-	#[rpc(name = "syloDirectory_scan")]
-	fn scan(&self, point: Balance) -> Result<AccountId>;
+pub trait SyloListingApi<AccountId> {
+	#[rpc(name = "syloListing_get_listing")]
+	fn get_listing(&self, key: AccountId) -> Result<MultiAddress>;
 }
 
 /// An implementation of Sylo directory specific RPC methods.
-pub struct SyloDirectory<C, T> {
+pub struct SyloListing<C, T> {
 	client: Arc<C>,
 	_marker: std::marker::PhantomData<T>,
 }
 
-impl<C, T> SyloDirectory<C, T> {
+impl<C, T> SyloListing<C, T> {
 	/// Create new Sylo directory client
 	pub fn new(client: Arc<C>) -> Self {
-		SyloDirectory {
+		SyloListing {
 			client,
 			_marker: Default::default(),
 		}
@@ -47,29 +48,28 @@ impl From<Error> for i64 {
 	}
 }
 
-impl<C, Block, Balance, AccountId> SyloDirectoryApi<Balance, AccountId> for SyloDirectory<C, Block>
+impl<C, Block, AccountId> SyloListingApi<AccountId> for SyloListing<C, Block>
 where
 	Block: BlockT,
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	C::Api: SyloDirectoryRuntimeApi<Block, Balance, AccountId>,
-	Balance: Codec + BaseArithmetic,
+	C::Api: SyloListingRuntimeApi<Block, AccountId>,
 	AccountId: Codec,
 {
-	fn scan(&self, point: Balance) -> Result<AccountId> {
+	fn get_listing(&self, key: AccountId) -> Result<MultiAddress> {
 		let api = self.client.runtime_api();
 		let best = self.client.info().best_hash;
 		let at = BlockId::hash(best);
 
 		let result = api
-			.scan(&at, point) 
+			.get_listing(&at, key) 
 			.map_err(|e| RpcError {
 				code: ErrorCode::ServerError(Error::Runtime.into()),
 				message: "Unable to query scan.".into(),
 				data: Some(format!("{:?}", e).into()),
 			})?;
 		match result {
-			SyloDirectoryResult::Success(acc) => Ok(acc),
-			SyloDirectoryResult::Error => Err(RpcError {
+			SyloListingResult::Success(acc) => Ok(acc),
+			SyloListingResult::Error => Err(RpcError {
 				code: ErrorCode::ServerError(Error::Runtime.into()),
 				message: "Runtime error".into(),
 				data: Some("".into()),

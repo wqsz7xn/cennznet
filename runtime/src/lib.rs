@@ -77,6 +77,7 @@ use cennznet_primitives::types::{AccountId, AssetId, Balance, BlockNumber, Hash,
 pub use crml_cennzx::{ExchangeAddressGenerator, FeeRate, PerMillion, PerThousand};
 use crml_cennzx_rpc_runtime_api::CennzxResult;
 use crml_sylo_directory_rpc_runtime_api::SyloDirectoryResult;
+use crml_sylo_listing_rpc_runtime_api::SyloListingResult;
 pub use crml_sylo::device as sylo_device;
 pub use crml_sylo::e2ee as sylo_e2ee;
 pub use crml_sylo::groups as sylo_groups;
@@ -892,6 +893,13 @@ impl_runtime_apis! {
 				Ok(acc) => SyloDirectoryResult::Success(acc),
 				Err(_) => SyloDirectoryResult::Error,
 			}
+		}
+	}
+
+	impl crml_sylo_listing_rpc_runtime_api::SyloListingApi<Block, AccountId> for Runtime {
+		fn get_listing(key: AccountId) -> SyloListingResult {
+			let result = SyloListing::get_listing(key);
+			SyloListingResult::Success(result)
 		}
 	}
 
