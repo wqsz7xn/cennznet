@@ -16,15 +16,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod device;
+pub mod directory;
 pub mod e2ee;
 pub mod groups;
 pub mod inbox;
+pub mod listing;
 pub mod payment;
 pub mod response;
 pub mod ticketing;
 pub mod vault;
-pub mod listing;
-pub mod directory;
 
 #[cfg(test)]
 pub(crate) mod mock;
