@@ -409,7 +409,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	// Scan the stake directory, select a node
-	pub fn scan(point: BalanceOf<T>) -> Result<T::AccountId, Error<T>>{
+	pub fn scan(point: BalanceOf<T>) -> Result<T::AccountId, Error<T>> {
 		ensure!(Root::get() != EMPTY_HASH, Error::<T>::NoStakes);
 		let mut expected_val = (point / BalanceOf::<T>::max_value()) * Self::get_total_stake();
 		let mut current = Root::get();

@@ -14,7 +14,7 @@ pub enum SyloDirectoryResult<AccountId> {
 }
 
 sp_api::decl_runtime_apis! {
-	/// The RPC API to interact with Sylo stake tree 
+	/// The RPC API to interact with Sylo stake tree
 	pub trait SyloDirectoryApi<Balance, AccountId> where
 		Balance: Codec + BaseArithmetic,
 		AccountId: Codec,

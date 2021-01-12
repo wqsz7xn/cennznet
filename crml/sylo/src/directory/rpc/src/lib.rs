@@ -8,7 +8,9 @@ use sp_arithmetic::traits::{BaseArithmetic, SaturatedConversion};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
-pub use crml_sylo_directory_rpc_runtime_api::{self as runtime_api, SyloDirectoryApi as SyloDirectoryRuntimeApi, SyloDirectoryResult};
+pub use crml_sylo_directory_rpc_runtime_api::{
+	self as runtime_api, SyloDirectoryApi as SyloDirectoryRuntimeApi, SyloDirectoryResult,
+};
 
 /// Contracts RPC methods.
 #[rpc]
@@ -60,13 +62,11 @@ where
 		let best = self.client.info().best_hash;
 		let at = BlockId::hash(best);
 
-		let result = api
-			.scan(&at, point) 
-			.map_err(|e| RpcError {
-				code: ErrorCode::ServerError(Error::Runtime.into()),
-				message: "Unable to query scan.".into(),
-				data: Some(format!("{:?}", e).into()),
-			})?;
+		let result = api.scan(&at, point).map_err(|e| RpcError {
+			code: ErrorCode::ServerError(Error::Runtime.into()),
+			message: "Unable to query scan.".into(),
+			data: Some(format!("{:?}", e).into()),
+		})?;
 		match result {
 			SyloDirectoryResult::Success(acc) => Ok(acc),
 			SyloDirectoryResult::Error => Err(RpcError {

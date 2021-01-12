@@ -15,7 +15,7 @@ pub enum SyloListingResult {
 }
 
 sp_api::decl_runtime_apis! {
-	/// The RPC API to interact with Sylo stake tree 
+	/// The RPC API to interact with Sylo stake tree
 	pub trait SyloListingApi<AccountId> where
 		AccountId: Codec,
 	{

@@ -76,18 +76,17 @@ pub use sp_runtime::{ModuleId, Perbill, Percent, Permill, Perquintill};
 use cennznet_primitives::types::{AccountId, AssetId, Balance, BlockNumber, Hash, Header, Index, Moment, Signature};
 pub use crml_cennzx::{ExchangeAddressGenerator, FeeRate, PerMillion, PerThousand};
 use crml_cennzx_rpc_runtime_api::CennzxResult;
-use crml_sylo_directory_rpc_runtime_api::SyloDirectoryResult;
-use crml_sylo_listing_rpc_runtime_api::SyloListingResult;
 pub use crml_sylo::device as sylo_device;
+pub use crml_sylo::directory as sylo_directory;
 pub use crml_sylo::e2ee as sylo_e2ee;
 pub use crml_sylo::groups as sylo_groups;
 pub use crml_sylo::inbox as sylo_inbox;
+pub use crml_sylo::listing as sylo_listing;
 pub use crml_sylo::payment as sylo_payment;
 pub use crml_sylo::response as sylo_response;
 pub use crml_sylo::vault as sylo_vault;
-pub use crml_sylo::listing as sylo_listing;
-pub use crml_sylo::directory as sylo_directory;
-
+use crml_sylo_directory_rpc_runtime_api::SyloDirectoryResult;
+use crml_sylo_listing_rpc_runtime_api::SyloListingResult;
 
 pub use crml_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 pub use prml_generic_asset::{AssetInfo, Call as GenericAssetCall, SpendingAssetCurrency, StakingAssetCurrency};

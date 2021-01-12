@@ -1,6 +1,4 @@
-use frame_support::{
-	decl_module, decl_storage, weights::Weight
-};
+use frame_support::{decl_module, decl_storage, weights::Weight};
 use frame_system::ensure_signed;
 use sp_std::prelude::Vec;
 

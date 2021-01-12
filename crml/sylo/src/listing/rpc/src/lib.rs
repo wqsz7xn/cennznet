@@ -1,13 +1,15 @@
 use std::{convert::TryInto, sync::Arc};
 
 use codec::Codec;
+pub use crml_sylo_listing_rpc_runtime_api::{
+	self as runtime_api, SyloListingApi as SyloListingRuntimeApi, SyloListingResult,
+};
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use sp_api::ProvideRuntimeApi;
 use sp_arithmetic::traits::{BaseArithmetic, SaturatedConversion};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-pub use crml_sylo_listing_rpc_runtime_api::{self as runtime_api, SyloListingApi as SyloListingRuntimeApi, SyloListingResult};
 
 type MultiAddress = sp_std::prelude::Vec<u8>;
 
@@ -60,13 +62,11 @@ where
 		let best = self.client.info().best_hash;
 		let at = BlockId::hash(best);
 
-		let result = api
-			.get_listing(&at, key) 
-			.map_err(|e| RpcError {
-				code: ErrorCode::ServerError(Error::Runtime.into()),
-				message: "Unable to query scan.".into(),
-				data: Some(format!("{:?}", e).into()),
-			})?;
+		let result = api.get_listing(&at, key).map_err(|e| RpcError {
+			code: ErrorCode::ServerError(Error::Runtime.into()),
+			message: "Unable to query scan.".into(),
+			data: Some(format!("{:?}", e).into()),
+		})?;
 		match result {
 			SyloListingResult::Success(acc) => Ok(acc),
 			SyloListingResult::Error => Err(RpcError {
