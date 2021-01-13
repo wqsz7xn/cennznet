@@ -23,6 +23,7 @@ pub mod inbox;
 pub mod listing;
 pub mod payment;
 pub mod response;
+pub mod ticketing;
 pub mod vault;
 
 #[cfg(test)]

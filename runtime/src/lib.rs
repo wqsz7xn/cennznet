@@ -84,6 +84,7 @@ pub use crml_sylo::inbox as sylo_inbox;
 pub use crml_sylo::listing as sylo_listing;
 pub use crml_sylo::payment as sylo_payment;
 pub use crml_sylo::response as sylo_response;
+pub use crml_sylo::ticketing as sylo_ticketing;
 pub use crml_sylo::vault as sylo_vault;
 use crml_sylo_directory_rpc_runtime_api::SyloDirectoryResult;
 use crml_sylo_listing_rpc_runtime_api::SyloListingResult;
@@ -517,6 +518,11 @@ impl crml_sylo::directory::Trait for Runtime {
 impl crml_sylo::groups::Trait for Runtime {
 	type WeightInfo = ();
 }
+impl crml_sylo::ticketing::Trait for Runtime {
+	type Currency = SpendingAssetCurrency<Self>;
+	type WeightInfo = ();
+	type Time = Timestamp;
+}
 
 impl crml_cennzx::Trait for Runtime {
 	type AssetId = AssetId;
@@ -634,6 +640,7 @@ construct_runtime!(
 		Rewards: crml_staking_rewards::{Module, Call, Storage, Config, Event<T>} = 30,
 		SyloListing: sylo_listing::{Module, Call, Storage} = 31,
 		SyloDirectory: sylo_directory::{Module, Call, Storage} = 32,
+		SyloTicketing: sylo_ticketing::{Module, Call, Storage} = 33,
 	}
 );
 
