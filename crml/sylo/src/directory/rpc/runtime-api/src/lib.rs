@@ -2,6 +2,7 @@
 
 use codec::{Codec, Decode, Encode};
 use sp_arithmetic::traits::BaseArithmetic;
+use sp_core::U256;
 use sp_runtime::RuntimeDebug;
 
 /// A result of querying the Sylo directory
@@ -15,11 +16,10 @@ pub enum SyloDirectoryResult<AccountId> {
 
 sp_api::decl_runtime_apis! {
 	/// The RPC API to interact with Sylo stake tree
-	pub trait SyloDirectoryApi<Balance, AccountId> where
-		Balance: Codec + BaseArithmetic,
+	pub trait SyloDirectoryApi<AccountId> where
 		AccountId: Codec,
 	{
 		/// Scan the stake directory and select a weighted node
-		fn scan(point: Balance) -> SyloDirectoryResult<AccountId>;
+		fn scan(point: U256) -> SyloDirectoryResult<AccountId>;
 	}
 }

@@ -6,6 +6,7 @@ use jsonrpc_derive::rpc;
 use sp_api::ProvideRuntimeApi;
 use sp_arithmetic::traits::{BaseArithmetic, SaturatedConversion};
 use sp_blockchain::HeaderBackend;
+use sp_core::U256;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 pub use crml_sylo_directory_rpc_runtime_api::{
@@ -14,9 +15,9 @@ pub use crml_sylo_directory_rpc_runtime_api::{
 
 /// Contracts RPC methods.
 #[rpc]
-pub trait SyloDirectoryApi<Balance, AccountId> {
+pub trait SyloDirectoryApi<AccountId> {
 	#[rpc(name = "syloDirectory_scan")]
-	fn scan(&self, point: Balance) -> Result<AccountId>;
+	fn scan(&self, point: U256) -> Result<AccountId>;
 }
 
 /// An implementation of Sylo directory specific RPC methods.
@@ -49,19 +50,26 @@ impl From<Error> for i64 {
 	}
 }
 
-impl<C, Block, Balance, AccountId> SyloDirectoryApi<Balance, AccountId> for SyloDirectory<C, Block>
+impl<C, Block, AccountId> SyloDirectoryApi<AccountId> for SyloDirectory<C, Block>
 where
 	Block: BlockT,
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	C::Api: SyloDirectoryRuntimeApi<Block, Balance, AccountId>,
-	Balance: Codec + BaseArithmetic,
+	C::Api: SyloDirectoryRuntimeApi<Block, AccountId>,
 	AccountId: Codec,
 {
-	fn scan(&self, point: Balance) -> Result<AccountId> {
+	fn scan(&self, point: U256) -> Result<AccountId> {
 		let api = self.client.runtime_api();
 		let best = self.client.info().best_hash;
 		let at = BlockId::hash(best);
 
+		// Accepts u256 but should only work on u128
+		if point > u128::MAX.into() {
+			return Err(RpcError {
+				code: ErrorCode:: ServerError(Error::Runtime.into()),
+				message: "Value too large.".into(),
+				data: Some(format!("Expected a 128bit integer but received {:?} instead", point).into()), 
+			})
+		}
 		let result = api.scan(&at, point).map_err(|e| RpcError {
 			code: ErrorCode::ServerError(Error::Runtime.into()),
 			message: "Unable to query scan.".into(),

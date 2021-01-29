@@ -36,7 +36,7 @@ use prml_generic_asset_rpc_runtime_api;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, U256};
 use sp_runtime::{
 	create_runtime_str,
 	generic::{self, Era},
@@ -893,8 +893,9 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl crml_sylo_directory_rpc_runtime_api::SyloDirectoryApi<Block, Balance, AccountId> for Runtime {
-		fn scan(point: Balance) -> SyloDirectoryResult<AccountId> {
+	impl crml_sylo_directory_rpc_runtime_api::SyloDirectoryApi<Block, AccountId> for Runtime {
+		fn scan(point: U256) -> SyloDirectoryResult<AccountId> {
+			let point: u128 = point.saturated_into();
 			let result = SyloDirectory::scan(point);
 			match result {
 				Ok(acc) => SyloDirectoryResult::Success(acc),

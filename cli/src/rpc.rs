@@ -103,7 +103,7 @@ where
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: crml_cennzx_rpc::CennzxRuntimeApi<Block, AssetId, Balance, AccountId>,
-	C::Api: crml_sylo_directory_rpc::SyloDirectoryRuntimeApi<Block, Balance, AccountId>,
+	C::Api: crml_sylo_directory_rpc::SyloDirectoryRuntimeApi<Block, AccountId>,
 	C::Api: crml_sylo_listing_rpc::SyloListingRuntimeApi<Block, AccountId>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: prml_generic_asset_rpc::AssetMetaApi<Block, AssetId>,
