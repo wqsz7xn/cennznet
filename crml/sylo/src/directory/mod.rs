@@ -1109,10 +1109,10 @@ mod test {
 			assert_eq!(Directory::get_total_stake(), 2);
 
 			let selected_1 = Directory::scan(BalanceOf::<Test>::max_value());
-			assert_eq!(selected_1, Some(a.clone()));
+			assert_eq!(selected_1.unwrap(), a.clone());
 
 			let selected_0 = Directory::scan((0 as u32).into());
-			assert_eq!(selected_0, Some(b.clone()));
+			assert_eq!(selected_0.unwrap(), b.clone());
 		})
 	}
 }
