@@ -13,6 +13,7 @@ frame-system = { git = "https://github.com/plugblockchain/plug-blockchain", rev 
 sp-core = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 sp-io = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 sp-runtime = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
+sp-arithmetic = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 sp-std = { git = "https://github.com/plugblockchain/plug-blockchain", rev = "2.0.2", default-features = false }
 
 [dev-dependencies]
